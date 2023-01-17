@@ -5,7 +5,7 @@
 		public static TString BytecodeSegmentToString(this BytecodeSegment segment) =>
 			segment switch
 			{
-				BytecodeSegment.GS1EventFlags => "GS1EventFlags",
+				BytecodeSegment.Gs1EventFlags => "GS1EventFlags",
 				BytecodeSegment.FunctionNames => "FunctionNames",
 				BytecodeSegment.Strings       => "Strings",
 				BytecodeSegment.Bytecode      => "Bytecode",

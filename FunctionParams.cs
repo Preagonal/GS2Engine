@@ -2,7 +2,7 @@
 {
 	public struct FunctionParams
 	{
-		public bool isPublic         { get; set; }
+		public bool IsPublic         { get; set; }
 		public int  BytecodePosition { get; set; }
 	}
 }

@@ -1,35 +1,67 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Threading.Tasks;
+using GS2Engine.Extensions;
 using GS2Engine.GS2.ByteCode;
+using GS2Engine.Models;
+using static System.IO.File;
 
-namespace GS2Engine
+namespace GS2Engine.GS2.Script
 {
-	public class TScript
+	public class Script
 	{
-		public readonly  Dictionary<string?, FunctionParams> functions = new();
-		private readonly List<TString>                       strings   = new();
-		public           TScriptCom[]                        bytecode  = { };
-		private          int                                 bytecodeLength;
-		public           int                                 field17_0xc0;
-		private          int                                 gs1flags;
-		public           Dictionary<string?, TStackEntry?>   variables = new()
-		{
-			{"servername", new(){Type = TStackEntryType.String, Value = "Login"}}
-		};
+		private readonly List<TString>                          _strings  = new();
+		public readonly  Dictionary<string, FunctionParams>     Functions = new();
+		public readonly  Dictionary<string, VariableCollection> Objects;
 
-		public TScript(TString bytecodeParam) => setStream(bytecodeParam);
+		public readonly VariableCollection Variables = new(
+					new Dictionary<string?, IStackEntry>
+					{
+						{ "servername", "Login".ToStackEntry() },
+						{ "truevar", true.ToStackEntry() },
+					}
+				)
+		;
+
+		private ScriptCom[] _bytecode = Array.Empty<ScriptCom>();
+		public  int         field17_0xc0;
+
+		public Script(TString bytecodeFile, IDictionary<string, VariableCollection> objects)
+		{
+			Name = Path.GetFileNameWithoutExtension(bytecodeFile);
+			File = bytecodeFile;
+			Objects = new(objects);
+
+			setStream(ReadAllBytes(bytecodeFile));
+			Machine = new(this);
+
+			Execute("onCreated").ConfigureAwait(false).GetAwaiter().GetResult();
+		}
+
+		private int BytecodeLength => _bytecode.Length;
+
+		public  TString       Name     { get; set; }
+		public  TString       File     { get; set; }
+		private int           Gs1Flags { get; set; }
+		public  ScriptMachine Machine  { get; set; }
+		private DateTime?     Timer    { get; set; }
+
+		public ScriptCom[] Bytecode => _bytecode;
+
 
 		private void setStream(TString bytecodeParam)
 		{
 			int oIndex = 0;
 
 
-			reset();
+			Reset();
 			bytecodeParam.setRead(0);
-			//bytecode = null;
 
 			while (bytecodeParam.bytesLeft() > 0)
 			{
-				Console.WriteLine($"Bytes left: {bytecodeParam.bytesLeft()}");
+				Tools.DebugLine($"Bytes left: {bytecodeParam.bytesLeft()}");
 
 				if (bytecodeParam.bytesLeft() == 1)
 					if (bytecodeParam.readChar() == '\n')
@@ -37,13 +69,13 @@ namespace GS2Engine
 
 				BytecodeSegment segmentType = (BytecodeSegment)bytecodeParam.readInt();
 
-				if (segmentType is < BytecodeSegment.GS1EventFlags or > BytecodeSegment.Bytecode)
+				if (segmentType is < BytecodeSegment.Gs1EventFlags or > BytecodeSegment.Bytecode)
 				{
-					Console.Write("Segment: Unknown ({0})\n", segmentType);
+					Tools.Debug($"Segment: Unknown ({segmentType})\n");
 					break;
 				}
 
-				Console.Write("Segment: {0}\n", segmentType.BytecodeSegmentToString());
+				Tools.Debug($"Segment: {segmentType.BytecodeSegmentToString()}\n");
 
 				int segmentLength = bytecodeParam.readInt();
 
@@ -51,12 +83,12 @@ namespace GS2Engine
 
 				switch (segmentType)
 				{
-					case BytecodeSegment.GS1EventFlags:
+					case BytecodeSegment.Gs1EventFlags:
 					{
 						int flags = 0;
 						if (3 < segmentSection.length())
 							flags = segmentSection.readInt();
-						gs1flags = flags;
+						Gs1Flags = flags;
 						break;
 					}
 
@@ -79,8 +111,7 @@ namespace GS2Engine
 								if (isPublic) functionName.removeStart(7);
 								addFunction(functionName, pos, isPublic);
 
-								Console.Write("Function[{0}]: {1}\n", pos, functionName);
-								//functionName.clear();
+								Tools.Debug($"Function[{pos}]: {functionName}\n");
 							}
 
 						break;
@@ -99,8 +130,8 @@ namespace GS2Engine
 									stringName.writeChar(ch);
 								}
 
-								strings.Add(stringName);
-								Console.Write("String: {0}\n", stringName);
+								_strings.Add(stringName);
+								Tools.Debug($"String: {stringName}\n");
 							}
 
 						break;
@@ -108,13 +139,12 @@ namespace GS2Engine
 
 					case BytecodeSegment.Bytecode:
 					{
-						//bytecode = {} ;//(TScriptCom*)malloc(0x100 * sizeof(TScriptCom));
-						TScriptCom? scriptCom = null;
+						ScriptCom op = null;
 						while (segmentSection.bytesLeft() > 0)
 						{
 							byte bytecodeByte = segmentSection.readChar();
 							if (bytecodeByte is >= 0xF0 and <= 0xF6)
-								Console.Write(" (Opcode: 0x{0}) ", bytecodeByte);
+								Tools.Debug($" (Opcode: 0x{bytecodeByte}) ");
 
 							switch (bytecodeByte)
 							{
@@ -122,49 +152,48 @@ namespace GS2Engine
 								{
 									byte varIndex = segmentSection.readChar();
 
-									scriptCom.VariableName = strings[varIndex];
+									op.VariableName = _strings[varIndex];
 
-
-									Console.Write(" - variable[{0}]({1}) (byte)\n", varIndex, scriptCom.VariableName);
+									Tools.Debug($" - variable[{varIndex}]({op.VariableName}) (byte)\n");
 									break;
 								}
 								case 0xF1:
 								{
 									short varIndex = segmentSection.readShort();
 
-									scriptCom.VariableName = strings[varIndex];
+									op.VariableName = _strings[varIndex];
 
-									Console.Write(" - string({0}) (word)\n", scriptCom.VariableName);
+									Tools.Debug($" - string({op.VariableName}) (word)\n");
 									break;
 								}
 								case 0xF2:
 								{
 									int varIndex = segmentSection.readInt();
 
-									scriptCom.VariableName = strings[varIndex];
+									op.VariableName = _strings[varIndex];
 
-									Console.Write(" - string({0}) (dword)\n", scriptCom.VariableName);
+									Tools.Debug($" - string({op.VariableName}) (dword)\n");
 									break;
 								}
 								case 0xF3:
 								{
 									byte varIndex = segmentSection.readChar();
-									scriptCom.Value = varIndex;
-									Console.Write(" - double({0}) (byte)\n", scriptCom.Value);
+									op.Value = varIndex;
+									Tools.Debug($" - double({op.Value}) (byte)\n");
 									break;
 								}
 								case 0xF4:
 								{
 									short varIndex = segmentSection.readShort();
-									scriptCom.Value = varIndex;
-									Console.Write(" - double({0}) (word)\n", scriptCom.Value);
+									op.Value = varIndex;
+									Tools.Debug($" - double({op.Value}) (word)\n");
 									break;
 								}
 								case 0xF5:
 								{
 									int varIndex = segmentSection.readInt();
-									scriptCom.Value = varIndex;
-									Console.Write(" - double({0}) (dword)\n", scriptCom.Value);
+									op.Value = varIndex;
+									Tools.Debug($" - double({op.Value}) (dword)\n");
 									break;
 								}
 								case 0xF6:
@@ -177,74 +206,46 @@ namespace GS2Engine
 										doubleString.writeChar(ch);
 									}
 
-									//byte stringLength = segmentSection.readChar();
-									//var test = segmentSection.readChars(stringLength);
-									scriptCom.Value = double.Parse(
-										doubleString.ToString(),
-										CultureInfo.InvariantCulture
-									);
-									Console.Write(" - double({0}) (string)\n", scriptCom.Value);
+									op.Value = double.Parse(doubleString.ToString(), CultureInfo.InvariantCulture);
+									Tools.Debug($" - double({op.Value}) (string)\n");
 									break;
 								}
 
 								default:
 								{
-									if (oIndex >= bytecodeLength)
-									{
-										Array.Resize(ref bytecode, oIndex + 0x100);
-										/*
-										bytecode = (TScriptCom*)realloc(
-											this->bytecode,
-											(oIndex + 0x100) * sizeof(TScriptCom)
-										);
-
-										size_t oldSize = this->bytecodeLength * sizeof(TScriptCom);
-										size_t newSize = (oIndex + 0x100) * sizeof(TScriptCom);
-
-										size_t diff = newSize - oldSize;
-										void* pStart = (char*)this->bytecode + oldSize;
-										memset(pStart, 0, diff)
-											*/
-
-										bytecodeLength = oIndex + 0x100;
-									}
-
-									scriptCom = bytecode[oIndex] = new();
-									scriptCom.BytecodeByte = bytecodeByte;
+									if (oIndex >= BytecodeLength) Array.Resize(ref _bytecode, oIndex + 0x100);
+									//BytecodeLength = oIndex + 0x100;
+									op = Bytecode[oIndex] = new();
+									op.OpCode = (Opcode)bytecodeByte;
 									++oIndex;
 									break;
 								}
 							}
 						}
 
-						Console.WriteLine("Bytecode done");
+						Tools.DebugLine("Bytecode done");
 						break;
 					}
 				}
 			}
 
-
-			bytecodeLength = oIndex;
-			Array.Resize(ref bytecode, oIndex);
+			Array.Resize(ref _bytecode, oIndex);
 
 			onScriptUpdated();
 		}
 
 		private void addFunction(TString functionName, int pos, bool isPublic) =>
-			functions.Add(functionName.ToString().ToLower(), new() { BytecodePosition = pos, isPublic = isPublic });
+			Functions.Add(functionName.ToString().ToLower(), new() { BytecodePosition = pos, IsPublic = isPublic });
 
-		private void reset()
-		{
-		}
 
-		private void onScriptUpdated()
+		private static void onScriptUpdated()
 		{
 			//fixBadByteCode();
 			//checkOnlyFunctions();
 			//optimizeByteCode();
 		}
 
-		private void optimizeByteCode()
+		private static void optimizeByteCode()
 		{
 			/*
 			TString str;
@@ -412,6 +413,123 @@ length = this->bytecodeLength;
 oIndex = oIndex + 1;
 } while (oIndex < length + -1);
 */
+		}
+
+		private async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? parameters = null) =>
+			await Machine.Execute(functionName, parameters);
+
+		/// <summary>
+		///     Function -> Call Event for Object
+		/// </summary>
+		public async Task Call(string eventName, object[]? args)
+		{
+			try
+			{
+				Stack<IStackEntry> callStack = new();
+				if (args != null)
+					foreach (object variable in args)
+						switch (variable)
+						{
+							case string s:
+								callStack.Push(s.ToStackEntry());
+								break;
+							case int i:
+								callStack.Push(i.ToStackEntry());
+								break;
+							case double d:
+								callStack.Push(d.ToStackEntry());
+								break;
+							case float f:
+								callStack.Push(f.ToStackEntry());
+								break;
+							case decimal dc:
+								callStack.Push(dc.ToStackEntry());
+								break;
+							case string[] sa:
+								callStack.Push(sa.ToStackEntry());
+								break;
+							case int[] ia:
+								callStack.Push(ia.ToStackEntry());
+								break;
+							case bool bo:
+								callStack.Push(bo.ToStackEntry());
+								break;
+						}
+
+				await Execute(eventName, callStack);
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine(e.Message);
+			}
+		}
+
+		public async Task<IStackEntry> TriggerEvent(string eventName)
+		{
+			switch (eventName.ToLower())
+			{
+				case "ontimeout":
+				{
+					break;
+				}
+				default:
+					return await Execute(eventName);
+			}
+
+			return 0.ToStackEntry();
+		}
+
+		public void SetTimer(double value) => Timer = DateTime.UtcNow.AddSeconds(value);
+
+		public void UpdateFromFile(string scriptFile)
+		{
+			Name = Path.GetFileNameWithoutExtension(scriptFile);
+			File = scriptFile;
+			Reset();
+			setStream(ReadAllBytes(scriptFile));
+
+			Execute("onCreated").ConfigureAwait(false).GetAwaiter().GetResult();
+		}
+
+		public void UpdateFromByteCode(byte[] byteCode)
+		{
+			Reset();
+			setStream(byteCode);
+
+			Execute("onCreated").ConfigureAwait(false).GetAwaiter().GetResult();
+		}
+
+		private void Reset()
+		{
+			Machine?.Reset();
+			Variables.Clear();
+			Variables.AddOrUpdate(
+				new Dictionary<string?, IStackEntry>
+				{
+					{ "servername", "Login".ToStackEntry() }, { "truevar", true.ToStackEntry() },
+				}
+			);
+			Functions.Clear();
+			_bytecode = Array.Empty<ScriptCom>();
+		}
+
+		public async Task<IStackEntry> RunEvents()
+		{
+			if (Timer <= DateTime.UtcNow)
+			{
+				Timer = null;
+				return await Execute("onTimeout");
+			}
+
+			return 0.ToStackEntry();
+		}
+
+		public void AddObjectReference(string objectType, VariableCollection obj)
+		{
+			if (Objects.ContainsKey(objectType))
+				Objects[objectType] = obj;
+			else
+				Objects.Add(objectType, obj);
 		}
 	}
 }

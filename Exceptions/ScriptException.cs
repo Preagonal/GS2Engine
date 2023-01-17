@@ -1,4 +1,6 @@
-﻿namespace GS2Engine
+﻿using System;
+
+namespace GS2Engine.Exceptions
 {
 	public class ScriptException : Exception
 	{

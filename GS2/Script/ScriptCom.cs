@@ -1,8 +1,10 @@
-﻿namespace GS2Engine
+﻿using GS2Engine.GS2.ByteCode;
+
+namespace GS2Engine.GS2.Script
 {
-	public class TScriptCom
+	public class ScriptCom
 	{
-		public byte     BytecodeByte { get; set; }
+		public Opcode   OpCode       { get; set; }
 		public uint     LoopCount    { get; set; } = 0;
 		public double   Value        { get; set; }
 		public TString? VariableName { get; set; }

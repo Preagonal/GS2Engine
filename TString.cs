@@ -1,4 +1,6 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Text;
 
 namespace GS2Engine
@@ -25,6 +27,8 @@ namespace GS2Engine
 		public TString()
 		{
 		}
+
+		public int Length => stringLength;
 
 		private void AddBuffer(string input, int length = 0)
 		{
@@ -116,10 +120,16 @@ namespace GS2Engine
 		public TString readChars(int pLength)
 		{
 			TString retVal = new();
-			pLength = Math.Clamp(pLength, 0, length() - readc);
+			pLength = Clamp(pLength, 0, length() - readc);
 			retVal.AddBuffer(buffer, readc, pLength);
 			readc += pLength;
 			return retVal;
+		}
+
+		private static int Clamp(int val, int min, int max)
+		{
+			if (val.CompareTo(min) < 0) return min;
+			return val.CompareTo(max) > 0 ? max : val;
 		}
 
 		public byte readChar()
@@ -147,5 +157,12 @@ namespace GS2Engine
 		}
 
 		public override string ToString() => Encoding.ASCII.GetString(buffer);
+
+		public bool Equals(TString compare) => ToString() == compare.ToString();
+
+		public bool StartsWith(TString toString, StringComparison culture) =>
+			ToString().StartsWith(toString.ToString(), culture);
+
+		public TString ToLower() => ToString().ToLower();
 	}
 }

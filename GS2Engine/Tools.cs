@@ -156,7 +156,7 @@ namespace GS2Engine
 
 		#endregion
 
-		private const bool DEBUG_ON = false;
+		public static bool DEBUG_ON = false;
 
 		public static void Debug(string? text)
 		{

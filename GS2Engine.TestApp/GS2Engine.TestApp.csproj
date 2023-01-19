@@ -17,7 +17,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\GS2Engine.csproj" />
 	  <ProjectReference Include="..\GS2Engine\GS2Engine.csproj" />
 	</ItemGroup>
 

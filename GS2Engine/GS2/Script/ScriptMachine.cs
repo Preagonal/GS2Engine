@@ -248,18 +248,18 @@ namespace GS2Engine.GS2.Script
 					case Opcode.OP_MEMBER_ACCESS:
 						var stackVal = stack.Pop();
 						TString? memberAccessParam = getEntryValue<TString>(stackVal, StackEntryType.String);
-						VariableCollection? memberAccessObject = getEntryValue<VariableCollection>(stack.Pop());
-						IStackEntry? member = null;
+						
 						try
 						{
-							member = memberAccessObject?.GetVariable(memberAccessParam);
+							VariableCollection? memberAccessObject = getEntryValue<VariableCollection>(stack.Pop());
+							IStackEntry member = memberAccessObject?.GetVariable(memberAccessParam);
+							stack.Push(member ?? 0.ToStackEntry());
 						}
 						catch (Exception e)
 						{
 							Tools.DebugLine(e.Message);
+							stack.Push(0.ToStackEntry());
 						}
-
-						stack.Push(member ?? 0.ToStackEntry());
 
 						break;
 					case Opcode.OP_CONV_TO_OBJECT:
@@ -530,7 +530,11 @@ namespace GS2Engine.GS2.Script
 						break;
 					case Opcode.OP_PLAYER:
 						//_script.Objects[p]
-						stack.Push(new StackEntry(Player, _script.Objects["player"]));
+						stack.Push(
+							_script.Objects.ContainsKey("player")
+								? new(Player, _script.Objects["player"])
+								: 0.ToStackEntry()
+						);
 						break;
 					case Opcode.OP_PLAYERO:
 						break;

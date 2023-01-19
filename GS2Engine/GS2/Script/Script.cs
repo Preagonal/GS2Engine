@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using GS2Engine.Extensions;
 using GS2Engine.GS2.ByteCode;
@@ -465,7 +466,7 @@ oIndex = oIndex + 1;
 			{
 				Stack<IStackEntry> callStack = new();
 				if (args != null)
-					foreach (object variable in args)
+					foreach (object variable in args.Reverse())
 						switch (variable)
 						{
 							case string s:

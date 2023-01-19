@@ -3,10 +3,10 @@ WORKDIR /app
 
 FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
 WORKDIR /src
-COPY ["TestApp/TestApp.csproj", "TestApp/"]
-RUN dotnet restore "TestApp/TestApp.csproj"
+COPY ["GS2Engine.TestApp/GS2Engine.TestApp.csproj", "GS2Engine.TestApp/"]
+RUN dotnet restore "GS2Engine.TestApp/GS2Engine.TestApp.csproj"
 COPY . .
-WORKDIR "/src/TestApp"
+WORKDIR "/src/GS2Engine.TestApp"
 RUN dotnet build "TestApp.csproj" -c Release -o /app/build
 
 FROM build AS publish

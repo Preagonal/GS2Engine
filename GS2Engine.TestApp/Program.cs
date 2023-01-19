@@ -1,19 +1,24 @@
-﻿// See https://aka.ms/new-console-template for more information
-
-using System.Reflection;
+﻿using System.Reflection;
 using GS2Engine;
 using GS2Engine.GS2.Script;
 
-HashSet<Script> scripts = new();
-foreach (string file in Directory.GetFiles($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}{Path.DirectorySeparatorChar}scripts"))
+internal class Program
 {
-	Console.WriteLine($"File: {file}");
-	scripts.Add(new(file, null, null, null));
-}
+	private static async Task Main(string[] args)
+	{
+		Tools.DEBUG_ON = true;
+		HashSet<Script> scripts = new();
+		foreach (string file in Directory.GetFiles($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}{Path.DirectorySeparatorChar}scripts"))
+		{
+			Console.WriteLine($"File: {file}");
+			scripts.Add(new(file, null, null, null));
+		}
 
-while (true)
-{
-	foreach (Script script in scripts) await script.TriggerEvent("onTimeout");
+		while (true)
+		{
+			foreach (Script script in scripts) await script.TriggerEvent("onTimeout");
 
-	Thread.Sleep(10);
+			Thread.Sleep(10);
+		}
+	}
 }

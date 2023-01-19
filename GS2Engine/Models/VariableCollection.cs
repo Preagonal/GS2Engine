@@ -5,12 +5,12 @@ namespace GS2Engine.Models
 {
 	public class VariableCollection
 	{
-		private readonly Dictionary<string?, IStackEntry> _collection = new();
+		private readonly Dictionary<string, IStackEntry> _collection = new();
 
 		public VariableCollection() {}
-		public VariableCollection(IDictionary<string?, IStackEntry> collection) => AddOrUpdate(collection);
+		public VariableCollection(IDictionary<string, IStackEntry>? collection) => AddOrUpdate(collection);
 
-		public IStackEntry GetVariable(TString? variable)
+		public IStackEntry GetVariable(TString variable)
 		{
 			return _collection.TryGetValue(variable, out IStackEntry? entry) ? entry : SetVariable(variable, "".ToStackEntry());
 		}
@@ -37,11 +37,18 @@ namespace GS2Engine.Models
 
 		public bool ContainsVariable(TString variable) => _collection.ContainsKey(variable.ToString());
 
-		public void AddOrUpdate(ICollection<KeyValuePair<string?,IStackEntry>> collection)
+		public void AddOrUpdate(IDictionary<string, IStackEntry>? collection)
 		{
-			foreach (KeyValuePair<string,IStackEntry> variable in collection) AddOrUpdate(variable.Key, variable.Value);
+			if (collection != null)
+				foreach (KeyValuePair<string,IStackEntry> variable in collection) AddOrUpdate(variable.Key, variable.Value);
 		}
 
-		public IDictionary<string?,IStackEntry> GetDictionary() => _collection;
+		public IDictionary<string,IStackEntry> GetDictionary() => _collection;
+
+		public void AddOrUpdate(VariableCollection? collection)
+		{
+			if (collection != null)
+				AddOrUpdate(collection.GetDictionary());
+		}
 	}
 }

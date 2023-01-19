@@ -15,7 +15,12 @@
 
 	<ItemGroup>
 		<Compile Remove="Program.cs" />
-		<None Include="Program.cs" />
+		<Compile Remove="TestApp\**" />
+		<None Remove="TestApp\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Remove="TestApp\**" />
 	</ItemGroup>
 
 </Project>

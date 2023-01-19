@@ -14,30 +14,67 @@ namespace GS2Engine.GS2.Script
 	{
 		private readonly List<TString>                          _strings  = new();
 		public readonly  Dictionary<string, FunctionParams>     Functions = new();
-		public readonly  Dictionary<string, VariableCollection> Objects;
-
-		public readonly VariableCollection Variables = new(
-					new Dictionary<string?, IStackEntry>
-					{
-						{ "servername", "Login".ToStackEntry() },
-						{ "truevar", true.ToStackEntry() },
-					}
-				)
-		;
+		public readonly  Dictionary<string, VariableCollection> Objects   = new();
+		public readonly  VariableCollection                     Variables = new();
 
 		private ScriptCom[] _bytecode = Array.Empty<ScriptCom>();
-		public  int         field17_0xc0;
 
-		public Script(TString bytecodeFile, IDictionary<string, VariableCollection> objects)
+		public Script(TString bytecodeFile, IDictionary<string, VariableCollection>? objects, VariableCollection? variables, Dictionary<string, Command>? functions)
 		{
 			Name = Path.GetFileNameWithoutExtension(bytecodeFile);
 			File = bytecodeFile;
-			Objects = new(objects);
-
-			setStream(ReadAllBytes(bytecodeFile));
 			Machine = new(this);
+			setStream(ReadAllBytes(bytecodeFile));
+
+			Init(objects, variables, functions);
+		}
+		
+		public void UpdateFromFile(string scriptFile, IDictionary<string, VariableCollection>? objects, VariableCollection? variables, Dictionary<string, Command>? functions)
+		{
+			Name = Path.GetFileNameWithoutExtension(scriptFile);
+			File = scriptFile;
+			setStream(ReadAllBytes(scriptFile));
+			
+			Init(objects, variables, functions);
+		}
+
+		public void UpdateFromByteCode(byte[] byteCode,IDictionary<string, VariableCollection>? objects, VariableCollection? variables, Dictionary<string, Command>? functions)
+		{
+			setStream(byteCode);
+
+			Init(objects, variables, functions);
+		}
+
+		private void Init(IDictionary<string, VariableCollection>? objects, VariableCollection? variables, Dictionary<string, Command>? functions)
+		{
+			if (objects != null)
+				foreach (KeyValuePair<string, VariableCollection> obj in objects)
+					Objects.Add(obj.Key, obj.Value);
+
+			Variables.AddOrUpdate(variables);
+
+			if (functions != null)
+				foreach (KeyValuePair<string, Command> obj in functions)
+					ExternalFunctions.Add(obj.Key, obj.Value);
+
+			ExternalFunctions.Add("settimer", delegate(ScriptMachine machine, IStackEntry[]? args)
+			{
+				if (args?.Length > 0)
+					SetTimer((double)(machine.GetEntry(args[0]).GetValue() ?? 0));
+				return 0.ToStackEntry();
+			});
 
 			Execute("onCreated").ConfigureAwait(false).GetAwaiter().GetResult();
+		}
+		public delegate IStackEntry Command(ScriptMachine machine, IStackEntry[]? args);
+		private void Reset()
+		{
+			Machine?.Reset();
+			Variables.Clear();
+			Functions.Clear();
+			Objects.Clear();
+			ExternalFunctions.Clear();
+			_bytecode = Array.Empty<ScriptCom>();
 		}
 
 		private int BytecodeLength => _bytecode.Length;
@@ -48,7 +85,8 @@ namespace GS2Engine.GS2.Script
 		public  ScriptMachine Machine  { get; set; }
 		private DateTime?     Timer    { get; set; }
 
-		public ScriptCom[] Bytecode => _bytecode;
+		public ScriptCom[]                 Bytecode          => _bytecode;
+		public Dictionary<string, Command> ExternalFunctions { get; } = new();
 
 
 		private void setStream(TString bytecodeParam)
@@ -480,38 +518,7 @@ oIndex = oIndex + 1;
 		}
 
 		public void SetTimer(double value) => Timer = DateTime.UtcNow.AddSeconds(value);
-
-		public void UpdateFromFile(string scriptFile)
-		{
-			Name = Path.GetFileNameWithoutExtension(scriptFile);
-			File = scriptFile;
-			Reset();
-			setStream(ReadAllBytes(scriptFile));
-
-			Execute("onCreated").ConfigureAwait(false).GetAwaiter().GetResult();
-		}
-
-		public void UpdateFromByteCode(byte[] byteCode)
-		{
-			Reset();
-			setStream(byteCode);
-
-			Execute("onCreated").ConfigureAwait(false).GetAwaiter().GetResult();
-		}
-
-		private void Reset()
-		{
-			Machine?.Reset();
-			Variables.Clear();
-			Variables.AddOrUpdate(
-				new Dictionary<string?, IStackEntry>
-				{
-					{ "servername", "Login".ToStackEntry() }, { "truevar", true.ToStackEntry() },
-				}
-			);
-			Functions.Clear();
-			_bytecode = Array.Empty<ScriptCom>();
-		}
+		
 
 		public async Task<IStackEntry> RunEvents()
 		{

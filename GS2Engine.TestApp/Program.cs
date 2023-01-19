@@ -2,6 +2,7 @@
 
 using System.Reflection;
 using GS2Engine;
+using GS2Engine.GS2.Script;
 
 HashSet<Script> scripts = new();
 foreach (string file in Directory.GetFiles(
@@ -9,7 +10,7 @@ foreach (string file in Directory.GetFiles(
          ))
 {
 	Console.WriteLine($"File: {file}");
-	scripts.Add(new(file));
+	scripts.Add(new(file, null, null, null));
 }
 
 

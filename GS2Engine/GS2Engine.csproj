@@ -6,6 +6,14 @@
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 		<LangVersion>latest</LangVersion>
 		<TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+		<Title>GS2Engine</Title>
+		<Authors>Preagonal</Authors>
+		<Copyright>Preagonal 2023</Copyright>
+		<PackageProjectUrl>https://github.com/Preagonal/GS2Engine</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/Preagonal/GS2Engine</RepositoryUrl>
+		<AssemblyVersion>1.0.0</AssemblyVersion>
+		<FileVersion>1.0.0</FileVersion>
+		<NeutralLanguage>en-US</NeutralLanguage>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -21,6 +29,12 @@
 
 	<ItemGroup>
 	  <EmbeddedResource Remove="TestApp\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Include="..\Jenkinsfile">
+	    <Link>Jenkinsfile</Link>
+	  </Content>
 	</ItemGroup>
 
 </Project>

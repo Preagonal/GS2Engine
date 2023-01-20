@@ -207,9 +207,8 @@ namespace GS2Engine.GS2.Script
 						stack.Push((op.VariableName ?? "").ToStackEntry(true));
 						break;
 					case Opcode.OP_TYPE_ARRAY:
-						index = _indexPos;
-
-						goto LAB_003381c0;
+						stack.Push(new StackEntry(ArrayStart, null));
+						break;
 
 					case Opcode.OP_TYPE_TRUE:
 						break;
@@ -266,7 +265,17 @@ namespace GS2Engine.GS2.Script
 						stack.Push(GetEntry(stack.Pop()));
 						break;
 					case Opcode.OP_ARRAY_END:
-						break;
+
+						List<object> stackArr = new List<object>();
+						//keep popping the stack till we hit an array start
+						while (stack.Count > 0 && stack.Peek().Type != ArrayStart)
+						{
+							stackArr.Add(GetEntry(stack.Pop())?.GetValue() ?? 0.ToStackEntry());
+						}
+                        stack.Pop(); //pop array start marker off
+
+						stack.Push(new StackEntry(StackEntryType.Array, stackArr));//push new array onto stack
+                        break;
 					case Opcode.OP_ARRAY_NEW:
 						break;
 					case Opcode.OP_SETARRAY:

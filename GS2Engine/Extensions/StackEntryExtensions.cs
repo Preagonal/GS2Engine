@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices.ComTypes;
 using GS2Engine.Enums;
 using GS2Engine.Models;
 
@@ -47,6 +48,7 @@ namespace GS2Engine.Extensions
 				decimal  => (double)(decimal)stackObject,
 				string[] => (string[])stackObject,
 				bool     => (bool)stackObject,
+				_		 => stackObject,
 			};
 		}
 
@@ -75,7 +77,12 @@ namespace GS2Engine.Extensions
 				{
 					if (stackObject.GetType() == typeof(TString))
 						return StackEntryType.String;
-					throw new ArgumentOutOfRangeException();
+
+					else if (stackObject.GetType().IsGenericType && stackObject.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)))
+						return StackEntryType.Array;
+					
+					else
+						throw new ArgumentOutOfRangeException();
 				}
 					
 			}

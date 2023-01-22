@@ -94,6 +94,43 @@ def buildStepDocker() {
 			if (env.TAG_NAME) {
 				archive_date = '';
 			}
+			
+			stage("Run tests...") {
+                customImage.inside("-u 0") {
+                    try{
+                        sh "dotnet test --logger \"trx;LogFileName=../../Testing/unit_tests.xml\""
+                    } catch(err) {
+                        currentBuild.result = 'FAILURE'
+
+                        discordSend description: "Testing Failed: ${fixed_job_name} #${env.BUILD_NUMBER} DockerImage: ${DOCKERIMAGE} (<${env.BUILD_URL}|Open>)", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK
+                        notify('Build failed')
+                    }
+
+                    archiveArtifacts (
+                        artifacts: 'Testing/**/*.xml',
+                        fingerprint: true
+                    )
+                    stage("Xunit") {
+                        // Process the CTest xml output with the xUnit plugin
+                        xunit (
+                            testTimeMargin: '3000',
+                            thresholdMode: 1,
+                            thresholds: [
+                                skipped(failureThreshold: '0'),
+                                failed(failureThreshold: '0')
+                            ],
+                            tools: [CTest(
+                                pattern: 'Testing/**/*.xml',
+                                deleteOutputFiles: true,
+                                failIfNotNew: false,
+                                skipNoTestFiles: true,
+                                stopProcessingIfError: true
+                            )],
+                            skipPublishingChecks: false
+                        );
+                    }
+                }
+            }
 
 
 			if (env.TAG_NAME) {

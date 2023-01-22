@@ -83,7 +83,7 @@ namespace GS2Engine.GS2.Script
 		public  TString       Name     { get; set; }
 		public  TString       File     { get; set; }
 		private int           Gs1Flags { get; set; }
-		public  ScriptMachine Machine  { get; set; }
+		public  ScriptMachine Machine  { get; }
 		private DateTime?     Timer    { get; set; }
 
 		public ScriptCom[]                 Bytecode          => _bytecode;
@@ -286,172 +286,7 @@ namespace GS2Engine.GS2.Script
 
 		private static void optimizeByteCode()
 		{
-			/*
-			TString str;
-			uint hashcode;
-			TScriptProperty* pTVar1;
-			int oIndex;
-			void* __fn;
-			void* in_R8;
-			TProperties* properties;
-			TScriptCom* bytecodeByte1;
-			TScriptCom* bytecodeByte2;
-			int length;
-			unsigned char opCode;
-			unsigned char opCode2;
-
-			oIndex = 0;
-			length = this->bytecodeLength;
-			if (1 < length)
-				do
-				{
-					properties = TScriptUniverse_properties;
-					bytecodeByte1 = &this->bytecode[oIndex];
-					bytecodeByte2 = &this->bytecode[oIndex + 1];
-					opCode = bytecodeByte1->byte;
-					switch (opCode)
-					{
-						case '\x14':
-							opCode2 = bytecodeByte2->byte;
-							if (opCode2 < 0x4c)
-							{
-								if (opCode2 < 0x48)
-								{
-									if ((unsigned char)opCode2 - 0x3c < 8) {
-										if (oIndex + 2 < length && (this->bytecode[(long)oIndex + 2].byte == '2')) {
-											bytecodeByte1->byte = opCode2 + 0x9c;
-											oIndex = oIndex + 2;
-										}
-										else {
-											bytecodeByte1->byte = opCode2 + 0x8c;
-											oIndex = oIndex + 1;
-										}
-									}
-								}
-								else
-								{
-									oIndex = oIndex + 1;
-									bytecodeByte1->byte = opCode2 + 0x98;
-								}
-							}
-							else if (opCode2 == 0x83)
-							{
-								bytecodeByte1->byte = -0x10;
-								oIndex = oIndex + 1;
-							}
-
-							break;
-						case '\x16':
-							switch (bytecodeByte2->
-
-							byte) {
-							case '\x06':
-							case '-':
-							case '/':
-							str = bytecodeByte1->variableName;
-							hashcode = THashList::getHashcode(str);
-							__fn = (void*)hashcode;
-							/*
-									pTVar1 = (TScriptProperty *)
-										THashList::getObjectEncoded(&properties->hashList,hashcode,str);
-									if ((pTVar1 != (TScriptProperty *)0x0) && (pTVar1->isFunction != false)) {
-										str.clear();
-										bytecodeByte1->byte = -0xf;
-										if ((this->graalVar).protected_object < pTVar1->functionLevel) {
-											length = TServerList::getServerPrivileges();
-											if (length < (int)(uint)pTVar1->functionLevel) {
-												pTVar1 = TScriptProperty::clone
-													(pTVar1,__fn,(void *)(ulong)pTVar1->functionLevel,0x408390,in_R8)
-													;
-												bytecodeByte1->scriptProperty = pTVar1;
-												pTVar1->functionLevel = 10;
-												break;
-											}
-										}
-										bytecodeByte1->scriptProperty = pTVar1;
-									}
-									*
-							break;
-							case '#':
-							if (oIndex < length + -2)
-							{
-								opCode2 = this->bytecode[(long)oIndex + 2].byte;
-								if (opCode2 == 0x22)
-								{
-									bytecodeByte1->byte = -0x13;
-									oIndex = oIndex + 2;
-								}
-								else if (opCode2 < 0x23)
-								{
-									if (opCode2 != 0x21) goto LAB_0032d73b;
-									bytecodeByte1->byte = -0x14;
-									oIndex = oIndex + 2;
-								}
-								else if (opCode2 == 0x24)
-								{
-									bytecodeByte1->byte = -0x12;
-									oIndex = oIndex + 2;
-								}
-								else
-								{
-									if (opCode2 != 0x2f ||
-									    ((oIndex + 3 < length && (this->bytecode[(long)oIndex + 3].byte == '-'))))
-									goto LAB_0032d73b;
-									bytecodeByte1->byte = -0x11;
-									oIndex = oIndex + 2;
-								}
-							}
-							else
-							{
-								bytecodeByte1->byte = -0x16;
-								oIndex = oIndex + 1;
-							}
-
-							break;
-							case '$':
-							bytecodeByte1->byte = -0x15;
-							oIndex = oIndex + 1;
-						}
-							break;
-						case '.':
-							opCode2 = bytecodeByte2->byte - 0x1e;
-							if (opCode2 < 0x18)
-							{
-								/*
-								/* WARNING: Could not recover jumptable at 0x0032d702. Too many branches */
-			/* WARNING: Treating indirect jump as call *
-			(*(code *)(&DAT_00408390 + *(int *)(&DAT_00408390 + (ulong)opCode2 * 4)))
-				(length,opCode,&DAT_00408390 + *(int *)(&DAT_00408390 + (ulong)opCode2 * 4));
-			return;
-			*
-		}
-
-		break;
-	case '/':
-		if (bytecodeByte2->byte == '-') {
-		bytecodeByte1->byte = -0xe;
-		bytecodeByte1->value = bytecodeByte2->value;
-		oIndex = oIndex + 1;
-	}
-		break;
-	case '<':
-	case '=':
-	case '>':
-	case '?':
-	case '@':
-	case 'A':
-	case 'B':
-	case 'C':
-		if (bytecodeByte2->byte == '2') {
-		bytecodeByte1->byte = opCode + -0x6c;
-		oIndex = oIndex + 1;
-	}
-}
-
-length = this->bytecodeLength;
-oIndex = oIndex + 1;
-} while (oIndex < length + -1);
-*/
+			
 		}
 
 		private async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? parameters = null) =>
@@ -518,7 +353,7 @@ oIndex = oIndex + 1;
 			return 0.ToStackEntry();
 		}
 
-		public void SetTimer(double value) => Timer = DateTime.UtcNow.AddSeconds(value);
+		private void SetTimer(double value) => Timer = DateTime.UtcNow.AddSeconds(value);
 		
 
 		public async Task<IStackEntry> RunEvents()

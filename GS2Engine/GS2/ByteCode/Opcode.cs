@@ -123,6 +123,6 @@
 		OP_LEVEL                 = 184,
 		OP_TEMP                  = 189,
 		OP_PARAMS                = 190,
-		OP_NUM_OPS //  This is to get the number of operations
+		OP_NUM_OPS, //  This is to get the number of operations
 	}
 }

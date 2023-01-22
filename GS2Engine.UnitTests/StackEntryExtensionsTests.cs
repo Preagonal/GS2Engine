@@ -95,5 +95,20 @@ namespace GS2Engine.UnitTests
 			Assert.Equal(typeof(List<string>), test.GetValue()?.GetType());
 			Assert.Equal(val, test.GetValue());
 		}
+
+		[Fact]
+		public void When_input_is_bool_Then_return_StackEntry_with_type_bool_and_value_type_bool()
+		{
+			//Arrange
+			const bool val = true;
+			
+			//Act
+			IStackEntry test = val.ToStackEntry();
+			
+			//Assert
+			Assert.Equal(StackEntryType.Boolean, test.Type);
+			Assert.Equal(typeof(bool), test.GetValue()?.GetType());
+			Assert.Equal(val, test.GetValue());
+		}
 	}
 }

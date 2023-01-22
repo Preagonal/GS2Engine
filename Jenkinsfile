@@ -83,6 +83,7 @@ def buildStepDocker() {
 				customImage.inside("-u 0") {
 					sh("chmod 777 -R .");
 					sh("dotnet pack GS2Engine/GS2Engine.csproj -c Release");
+					sh("chmod 777 -R .");
 				}
 			}
 
@@ -98,10 +99,11 @@ def buildStepDocker() {
 			stage("Run tests...") {
                 customImage.inside("-u 0") {
                     try{
-                        sh "dotnet test --logger \"xunit;LogFileName=../../Testing/unit_tests.xml\""
+                        sh("dotnet test --logger \"trx;LogFileName=../../Testing/unit_tests.xml\"");
+                        sh("chmod 777 -R .");
                     } catch(err) {
                         currentBuild.result = 'FAILURE'
-
+						sh("chmod 777 -R .");
                         discordSend description: "Testing Failed: ${fixed_job_name} #${env.BUILD_NUMBER} DockerImage: ${DOCKERIMAGE} (<${env.BUILD_URL}|Open>)", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK
                         notify('Build failed')
                     }

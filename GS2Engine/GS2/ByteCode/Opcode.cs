@@ -70,6 +70,7 @@
 		OP_IN_OBJ                = 81,
 		OP_OBJ_INDEX             = 82,
 		OP_OBJ_TYPE              = 83, // gets the type of the var (float 0, string 1, object 2, array 3)
+		
 		OP_FORMAT                = 84,
 		OP_INT                   = 85,
 		OP_ABS                   = 86,

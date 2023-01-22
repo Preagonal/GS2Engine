@@ -178,7 +178,7 @@ namespace GS2Engine.GS2.Script
 
 					case BytecodeSegment.Bytecode:
 					{
-						ScriptCom op = null;
+						ScriptCom op = new();
 						while (segmentSection.bytesLeft() > 0)
 						{
 							byte bytecodeByte = segmentSection.readChar();

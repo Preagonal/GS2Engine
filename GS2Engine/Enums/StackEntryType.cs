@@ -7,6 +7,7 @@
 		Variable,
 		Boolean,
 		Array,
+		ArrayStart,
 		Player
 	}
 }

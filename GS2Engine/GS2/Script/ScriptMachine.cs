@@ -46,7 +46,6 @@ namespace GS2Engine.GS2.Script
 			Tools.DebugLine($"Starting to execute function \"{functionName}\"");
 			while (index < _script.Bytecode.Length)
 			{
-				LAB_003381c0:
 				int curIndex = index;
 				index = curIndex + 1;
 				_indexPos = index;
@@ -245,13 +244,13 @@ namespace GS2Engine.GS2.Script
 						stack.Push(getEntryValue<object>(stack.Pop())?.ToString().ToStackEntry() ?? "".ToStackEntry());
 						break;
 					case Opcode.OP_MEMBER_ACCESS:
-						var stackVal = stack.Pop();
+						IStackEntry? stackVal = stack.Pop();
 						TString? memberAccessParam = getEntryValue<TString>(stackVal, StackEntryType.String);
 						
 						try
 						{
 							VariableCollection? memberAccessObject = getEntryValue<VariableCollection>(stack.Pop());
-							IStackEntry member = memberAccessObject?.GetVariable(memberAccessParam);
+							IStackEntry? member = memberAccessObject?.GetVariable(memberAccessParam ?? "");
 							stack.Push(member ?? 0.ToStackEntry());
 						}
 						catch (Exception e)

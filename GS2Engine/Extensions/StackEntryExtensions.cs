@@ -40,15 +40,15 @@ namespace GS2Engine.Extensions
 		{
 			return stackObject  switch
 			{
-				string   => (TString)stackObject.ToString(),
-				TString  => stackObject,
-				int      => (double)(int)stackObject,
-				double   => (double)stackObject,
-				float    => (double)(float)stackObject,
-				decimal  => (double)(decimal)stackObject,
-				string[] => (string[])stackObject,
-				bool     => (bool)stackObject,
-				_		 => stackObject,
+				string           => (TString)stackObject.ToString(),
+				TString          => stackObject,
+				int i            => (double)i,
+				double d         => d,
+				float f          => (double)f,
+				decimal o        => (double)o,
+				string[] strings => strings,
+				bool b           => b,
+				_                => stackObject,
 			};
 		}
 

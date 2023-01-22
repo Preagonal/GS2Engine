@@ -107,7 +107,7 @@ def buildStepDocker() {
                     }
 
                     archiveArtifacts (
-                        artifacts: 'Testing/**/*.xml',
+                        artifacts: 'Testing/**.xml',
                         fingerprint: true
                     )
                     stage("Xunit") {

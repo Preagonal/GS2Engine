@@ -98,7 +98,7 @@ def buildStepDocker() {
 			stage("Run tests...") {
                 customImage.inside("-u 0") {
                     try{
-                        sh "dotnet test --logger \"trx;LogFileName=../../Testing/unit_tests.xml\""
+                        sh "dotnet test --logger \"xunit;LogFileName=../../Testing/unit_tests.xml\""
                     } catch(err) {
                         currentBuild.result = 'FAILURE'
 
@@ -111,7 +111,6 @@ def buildStepDocker() {
                         fingerprint: true
                     )
                     stage("Xunit") {
-                        // Process the CTest xml output with the xUnit plugin
                         xunit (
                             testTimeMargin: '3000',
                             thresholdMode: 1,
@@ -119,8 +118,8 @@ def buildStepDocker() {
                                 skipped(failureThreshold: '0'),
                                 failed(failureThreshold: '0')
                             ],
-                            tools: [CTest(
-                                pattern: 'Testing/**/*.xml',
+                            tools: [MSTest(
+                                pattern: 'Testing/**.xml',
                                 deleteOutputFiles: true,
                                 failIfNotNew: false,
                                 skipNoTestFiles: true,

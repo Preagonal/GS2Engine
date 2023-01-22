@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using System.Runtime.InteropServices.ComTypes;
 using GS2Engine.Enums;
 using GS2Engine.Models;
 
@@ -10,29 +8,6 @@ namespace GS2Engine.Extensions
 {
 	public static class StackEntryExtensions
 	{
-		/*
-		public static StackEntry ToStackEntry(this string stackObject, bool isVariable = false) =>
-			new(isVariable ? StackEntryType.Variable : StackEntryType.String, (TString)stackObject);
-
-		public static StackEntry ToStackEntry(this TString stackObject, bool isVariable = false) =>
-			new(isVariable ? StackEntryType.Variable : StackEntryType.String, stackObject);
-
-		public static StackEntry ToStackEntry(this bool stackObject) => new(StackEntryType.Boolean, stackObject);
-		public static StackEntry ToStackEntry(this byte stackObject) => new(StackEntryType.Number, stackObject);
-		public static StackEntry ToStackEntry(this int stackObject) => new(StackEntryType.Number, stackObject);
-
-		public static StackEntry ToStackEntry(this float stackObject) =>
-			new(StackEntryType.Number, stackObject);
-
-		public static StackEntry ToStackEntry(this double stackObject) =>
-			new(StackEntryType.Number, stackObject);
-
-		public static StackEntry ToStackEntry(this decimal stackObject) =>
-			new(StackEntryType.Number, (double)stackObject);
-
-		public static StackEntry ToStackEntry(this short stackObject) =>
-			new(StackEntryType.Number, stackObject);
-*/
 		public static StackEntry ToStackEntry(this object stackObject, bool isVariable = false) =>
 			new(isVariable?StackEntryType.Variable:GetStackEntryType(stackObject), FixStackValue(stackObject));
 
@@ -78,20 +53,18 @@ namespace GS2Engine.Extensions
 					if (stackObject.GetType() == typeof(TString))
 						return StackEntryType.String;
 
-					else if (stackObject.GetType().IsGenericType && stackObject.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)))
+					if (stackObject.GetType().IsGenericType && stackObject.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)))
 						return StackEntryType.Array;
-					
-					else
-						throw new ArgumentOutOfRangeException();
+
+					throw new ArgumentOutOfRangeException();
 				}
-					
 			}
 		}
 
-		public static StackEntry ToStackEntry(this IEnumerable<string> stackObject) =>
-			new(StackEntryType.Array, stackObject.ToList());
+		public static IStackEntry ToStackEntry(this IEnumerable<string> stackObject) =>
+			new StackEntry(StackEntryType.Array, stackObject.ToList());
 
-		public static StackEntry ToStackEntry(this IEnumerable<int> stackObject) =>
-			new(StackEntryType.Array, stackObject.ToList());
+		public static IStackEntry ToStackEntry(this IEnumerable<int> stackObject) =>
+			new StackEntry(StackEntryType.Array, stackObject.ToList());
 	}
 }

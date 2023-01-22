@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="7404f8a1-1192-42ab-ab24-589a6b31c2ba" name="@Cthulhu 2023-01-22 15:10:16" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2023-01-22T15:10:16.1631935+01:00" queuing="2023-01-22T15:10:16.1631936+01:00" start="2023-01-22T15:10:14.7305244+01:00" finish="2023-01-22T15:10:16.1722507+01:00" />
+  <TestSettings name="default" id="9d4f88f6-9e71-4b7f-9aee-a1a97722c426">
+    <Deployment runDeploymentRoot="_Cthulhu_2023-01-22_15_10_16" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="9af95720-32c5-4c18-a8df-31587ce0a541" testId="a9b4a330-fdd3-abc2-b995-ef2664369322" testName="GS2Engine.UnitTests.StackEntryExtensionsTests.When_input_is_number_Then_return_StackEntry_with_type_number_and_value_type_double" computerName="Cthulhu" duration="00:00:00.0079409" startTime="2023-01-22T15:10:16.0436393+01:00" endTime="2023-01-22T15:10:16.0436974+01:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9af95720-32c5-4c18-a8df-31587ce0a541" />
+    <UnitTestResult executionId="da391dc7-9f7a-4ac2-8a5e-ed60cb794876" testId="76964907-b498-d145-c552-0a8141d0903c" testName="GS2Engine.UnitTests.StackEntryExtensionsTests.When_input_is_string_Then_return_StackEntry_with_type_string_and_value_type_TString" computerName="Cthulhu" duration="00:00:00.0007299" startTime="2023-01-22T15:10:16.0481702+01:00" endTime="2023-01-22T15:10:16.0481703+01:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="da391dc7-9f7a-4ac2-8a5e-ed60cb794876" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="GS2Engine.UnitTests.StackEntryExtensionsTests.When_input_is_number_Then_return_StackEntry_with_type_number_and_value_type_double" storage="/home/marlon/nfs/storage/projects/gameproject/gs2engine/gs2engine.unittests/bin/debug/net7.0/gs2engine.unittests.dll" id="a9b4a330-fdd3-abc2-b995-ef2664369322">
+      <Execution id="9af95720-32c5-4c18-a8df-31587ce0a541" />
+      <TestMethod codeBase="/home/marlon/nfs/storage/projects/gameproject/GS2Engine/GS2Engine.UnitTests/bin/Debug/net7.0/GS2Engine.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="GS2Engine.UnitTests.StackEntryExtensionsTests" name="When_input_is_number_Then_return_StackEntry_with_type_number_and_value_type_double" />
+    </UnitTest>
+    <UnitTest name="GS2Engine.UnitTests.StackEntryExtensionsTests.When_input_is_string_Then_return_StackEntry_with_type_string_and_value_type_TString" storage="/home/marlon/nfs/storage/projects/gameproject/gs2engine/gs2engine.unittests/bin/debug/net7.0/gs2engine.unittests.dll" id="76964907-b498-d145-c552-0a8141d0903c">
+      <Execution id="da391dc7-9f7a-4ac2-8a5e-ed60cb794876" />
+      <TestMethod codeBase="/home/marlon/nfs/storage/projects/gameproject/GS2Engine/GS2Engine.UnitTests/bin/Debug/net7.0/GS2Engine.UnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="GS2Engine.UnitTests.StackEntryExtensionsTests" name="When_input_is_string_Then_return_StackEntry_with_type_string_and_value_type_TString" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="a9b4a330-fdd3-abc2-b995-ef2664369322" executionId="9af95720-32c5-4c18-a8df-31587ce0a541" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="76964907-b498-d145-c552-0a8141d0903c" executionId="da391dc7-9f7a-4ac2-8a5e-ed60cb794876" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="2" executed="2" passed="2" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.4.5+1caef2f33e (64-bit .NET 7.0.2)
+[xUnit.net 00:00:00.51]   Discovering: GS2Engine.UnitTests
+[xUnit.net 00:00:00.54]   Discovered:  GS2Engine.UnitTests
+[xUnit.net 00:00:00.54]   Starting:    GS2Engine.UnitTests
+[xUnit.net 00:00:00.60]   Finished:    GS2Engine.UnitTests
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

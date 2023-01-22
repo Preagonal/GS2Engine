@@ -11,7 +11,7 @@ namespace GS2Engine.Extensions
 		public static StackEntry ToStackEntry(this object stackObject, bool isVariable = false) =>
 			new(isVariable?StackEntryType.Variable:GetStackEntryType(stackObject), FixStackValue(stackObject));
 
-		private static object? FixStackValue(object stackObject)
+		private static object FixStackValue(object stackObject)
 		{
 			return stackObject  switch
 			{
@@ -52,6 +52,9 @@ namespace GS2Engine.Extensions
 				{
 					if (stackObject.GetType() == typeof(TString))
 						return StackEntryType.String;
+					
+					if (stackObject is float)
+						return StackEntryType.Number;
 
 					if (stackObject.GetType().IsGenericType && stackObject.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)))
 						return StackEntryType.Array;

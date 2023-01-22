@@ -43,6 +43,9 @@ def buildStepDocker() {
 	def split_job_name = env.JOB_NAME.split(/\/{1}/);
 	def fixed_job_name = split_job_name[1].replace('%2F',' ');
 
+	def customImage = docker.image("mcr.microsoft.com/dotnet/sdk:7.0");
+    customImage.pull();
+
 	try {
 		checkout scm;
 
@@ -75,10 +78,8 @@ def buildStepDocker() {
 			def release_name = env.JOB_NAME.replace('%2F','/');
 			def release_type = ("${release_name}").replace('/','-').replace('GS2Engine-','').replace('main','').replace('dev','');
 
-			def customImage
 			stage("Building NuGet Package") {
-				customImage = docker.image("mcr.microsoft.com/dotnet/sdk:7.0");
-				customImage.pull();
+
 				customImage.inside("-u 0") {
 					sh("chmod 777 -R .");
 					sh("dotnet pack GS2Engine/GS2Engine.csproj -c Release");
@@ -99,8 +100,7 @@ def buildStepDocker() {
 				stage("Pushing NuGet") {
 					customImage.inside("-u 0") {
 						withCredentials([string(credentialsId: 'PREAGONAL_GITHUB_TOKEN', variable: 'GITHUB_TOKEN')]) {
-							sh("dotnet nuget push -s https://nuget.pkg.github.com/Preagonal/index.json -k ${env.GITHUB_TOKEN} GS2Engine/bin/Release/*.nupkg");
-							sh("chmod 777 -R .");
+							sh("dotnet nuget push -s https://nuget.pkg.github.com/Preagonal/index.json -k ${env.GITHUB_TOKEN} GS2Engine/bin/Release/*.nupkg;chmod 777 -R .");
 							discordSend description: "NuGet Successful", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Artifact Successful: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK;
 						}
 					}
@@ -109,7 +109,9 @@ def buildStepDocker() {
 		}
 	} catch(err) {
 		currentBuild.result = 'FAILURE'
-
+		customImage.inside("-u 0") {
+            sh("chmod 777 -R .");
+        }
 		discordSend description: "", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK
 
 		notify("Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}")

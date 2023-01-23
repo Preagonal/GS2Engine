@@ -156,7 +156,7 @@ namespace GS2Engine
 
 		#endregion
 
-		public static bool DEBUG_ON = false;
+		public static bool DEBUG_ON { get; set; } = false;
 
 		public static void Debug(string? text)
 		{

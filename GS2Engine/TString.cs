@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
@@ -41,7 +42,7 @@ namespace GS2Engine
 			}
 		}
 
-		private void AddBuffer(byte[] input, int start, int length = 0)
+		private void AddBuffer(IReadOnlyList<byte> input, int start, int length = 0)
 		{
 			Array.Resize(ref buffer, stringLength + length);
 			for (int i = start; i < start + length; i++)

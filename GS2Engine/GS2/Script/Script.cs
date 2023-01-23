@@ -13,10 +13,10 @@ namespace GS2Engine.GS2.Script
 {
 	public class Script
 	{
-		private readonly List<TString>                          _strings  = new();
-		public readonly  Dictionary<string, FunctionParams>     Functions = new();
-		public readonly  Dictionary<string, VariableCollection> Objects   = new();
-		public readonly  VariableCollection                     Variables = new();
+		private readonly List<TString>                           _strings  = new();
+		public readonly  Dictionary<string, FunctionParams>      Functions = new();
+		public           IDictionary<string, VariableCollection> GlobalObjects   = new Dictionary<string, VariableCollection>();
+		public           VariableCollection                      GlobalVariables = new();
 
 		private ScriptCom[] _bytecode = Array.Empty<ScriptCom>();
 
@@ -25,7 +25,7 @@ namespace GS2Engine.GS2.Script
 			Name = Path.GetFileNameWithoutExtension(bytecodeFile);
 			File = bytecodeFile;
 			Machine = new(this);
-			setStream(ReadAllBytes(bytecodeFile));
+			SetStream(ReadAllBytes(bytecodeFile));
 
 			Init(objects, variables, functions);
 		}
@@ -34,14 +34,14 @@ namespace GS2Engine.GS2.Script
 		{
 			Name = Path.GetFileNameWithoutExtension(scriptFile);
 			File = scriptFile;
-			setStream(ReadAllBytes(scriptFile));
+			SetStream(ReadAllBytes(scriptFile));
 			
 			Init(objects, variables, functions);
 		}
 
 		public void UpdateFromByteCode(byte[] byteCode,IDictionary<string, VariableCollection>? objects, VariableCollection? variables, Dictionary<string, Command>? functions)
 		{
-			setStream(byteCode);
+			SetStream(byteCode);
 
 			Init(objects, variables, functions);
 		}
@@ -49,10 +49,10 @@ namespace GS2Engine.GS2.Script
 		private void Init(IDictionary<string, VariableCollection>? objects, VariableCollection? variables, Dictionary<string, Command>? functions)
 		{
 			if (objects != null)
-				foreach (KeyValuePair<string, VariableCollection> obj in objects)
-					Objects.Add(obj.Key, obj.Value);
+				GlobalObjects = objects;
 
-			Variables.AddOrUpdate(variables);
+			if (variables != null)
+				GlobalVariables = variables;
 
 			if (functions != null)
 				foreach (KeyValuePair<string, Command> obj in functions)
@@ -70,10 +70,10 @@ namespace GS2Engine.GS2.Script
 		public delegate IStackEntry Command(ScriptMachine machine, IStackEntry[]? args);
 		private void Reset()
 		{
-			Machine?.Reset();
-			Variables.Clear();
+			Machine.Reset();
+			GlobalVariables.Clear();
 			Functions.Clear();
-			Objects.Clear();
+			GlobalObjects.Clear();
 			ExternalFunctions.Clear();
 			_bytecode = Array.Empty<ScriptCom>();
 		}
@@ -90,10 +90,11 @@ namespace GS2Engine.GS2.Script
 		public Dictionary<string, Command> ExternalFunctions { get; } = new();
 
 
-		private void setStream(TString bytecodeParam)
+		private void SetStream(TString bytecodeParam)
 		{
 			int oIndex = 0;
 
+			CheckHeader(bytecodeParam);
 
 			Reset();
 			bytecodeParam.setRead(0);
@@ -265,12 +266,51 @@ namespace GS2Engine.GS2.Script
 						Tools.DebugLine("Bytecode done");
 						break;
 					}
+					default:
+						throw new ArgumentOutOfRangeException();
 				}
 			}
 
 			Array.Resize(ref _bytecode, oIndex);
 
 			onScriptUpdated();
+		}
+
+		private static void CheckHeader(TString bytecodeParam)
+		{
+			byte isPacket = bytecodeParam.readChar();
+			if (isPacket != 0xAC) return;
+
+			Tools.DebugLine("GServer packet header included");
+			ushort infoSectionLength = (ushort)bytecodeParam.readShort();
+			Tools.DebugLine("Length of information section: $infoSectionLength");
+
+			TString infoSection = bytecodeParam.readChars(infoSectionLength);
+
+			string[] data = infoSection.ToString().Split(',');
+
+			string target = data[0];
+			string name = data[1];
+
+			Tools.DebugLine($"Code target: {target}");
+			Tools.DebugLine($"Target name: {name}");
+
+			int.TryParse(data[2], out int saveScriptToFileInt);
+			string saveScriptToFile = saveScriptToFileInt == 1 ? "Yes" : "No";
+
+			Tools.DebugLine($"Save script to file: {saveScriptToFile}");
+
+			/*
+			infoSection = data[3];
+			int keys  = 0;
+			while (infoSection.bytesLeft() > 0)
+			{
+				uint key = infoSection.readGInt5().toUInt();
+				//scriptKeys[keys] = CString(key);
+				Tools.DebugLine($"Key({keys}): {key}");
+				keys++;
+			}
+			*/
 		}
 
 		private void addFunction(TString functionName, int pos, bool isPublic) =>
@@ -369,10 +409,10 @@ namespace GS2Engine.GS2.Script
 
 		public void AddObjectReference(string objectType, VariableCollection obj)
 		{
-			if (Objects.ContainsKey(objectType))
-				Objects[objectType] = obj;
+			if (GlobalObjects.ContainsKey(objectType))
+				GlobalObjects[objectType] = obj;
 			else
-				Objects.Add(objectType, obj);
+				GlobalObjects.Add(objectType, obj);
 		}
 	}
 }

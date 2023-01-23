@@ -165,7 +165,7 @@ namespace GS2Engine.GS2.Script
 						IStackEntry ret = 0.ToStackEntry();
 						if (stack.Count > 0)
 							ret = stack.Pop();
-						Tools.DebugLine(JsonConvert.SerializeObject(_script.Variables.GetDictionary(), Formatting.Indented));
+						Tools.DebugLine(JsonConvert.SerializeObject(_script.GlobalVariables.GetDictionary(), Formatting.Indented));
 						return ret;
 					case Opcode.OP_SLEEP:
 						double sleep = getEntryValue<double>(stack.Pop());
@@ -297,7 +297,7 @@ namespace GS2Engine.GS2.Script
 						}
 						else if (!_useTemp)
 						{
-							_script.Variables.AddOrUpdate((variable.GetValue() ?? "").ToString().ToLower(), val);
+							_script.GlobalVariables.AddOrUpdate((variable.GetValue() ?? "").ToString().ToLower(), val);
 						}
 						else
 						{
@@ -487,7 +487,7 @@ namespace GS2Engine.GS2.Script
 					case Opcode.OP_ARRAY:
 						double arrayIndex = getEntryValue<double>(stack.Pop());
 						object? array = getEntryValue<object>(stack.Pop());
-						
+
 						if (array?.GetType() == typeof(List<string>))
 						{
 							stack.Push(((List<string>?)array)?[(int)arrayIndex].ToStackEntry() ?? new object().ToStackEntry());
@@ -501,7 +501,6 @@ namespace GS2Engine.GS2.Script
 							stack.Push(((List<object>?)array)?[(int)arrayIndex].ToStackEntry() ?? new object().ToStackEntry());
 						}
 
-						
 						break;
 					case Opcode.OP_ARRAY_ASSIGN:
 						break;
@@ -532,15 +531,15 @@ namespace GS2Engine.GS2.Script
 					case Opcode.OP_FOREACH:
 						break;
 					case Opcode.OP_THIS:
-						stack.Push(new StackEntry(StackEntryType.Array, _script.Variables));
+						stack.Push(new StackEntry(StackEntryType.Array, _script.GlobalVariables));
 						break;
 					case Opcode.OP_THISO:
 						break;
 					case Opcode.OP_PLAYER:
 						//_script.Objects[p]
 						stack.Push(
-							_script.Objects.ContainsKey("player")
-								? new(Player, _script.Objects["player"])
+							_script.GlobalObjects.ContainsKey("player")
+								? new(Player, _script.GlobalObjects["player"])
 								: 0.ToStackEntry()
 						);
 						break;
@@ -572,8 +571,8 @@ namespace GS2Engine.GS2.Script
 					_useTemp = false;
 					return _tempVariables.GetVariable(stackEntry.GetValue<TString>()?.ToLower() ?? string.Empty);
 				case Variable
-					when _script.Variables.ContainsVariable(stackEntry.GetValue<TString>()?.ToLower() ?? string.Empty):
-					return _script.Variables[stackEntry.GetValue<TString>()?.ToLower() ?? string.Empty];
+					when _script.GlobalVariables.ContainsVariable(stackEntry.GetValue<TString>()?.ToLower() ?? string.Empty):
+					return _script.GlobalVariables[stackEntry.GetValue<TString>()?.ToLower() ?? string.Empty];
 				default:
 					return stackEntry;
 			}

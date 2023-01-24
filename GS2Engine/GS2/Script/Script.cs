@@ -16,7 +16,7 @@ namespace GS2Engine.GS2.Script
 		private readonly List<TString>                           _strings  = new();
 		public readonly  Dictionary<string, FunctionParams>      Functions = new();
 		public           IDictionary<string, VariableCollection> GlobalObjects   = new Dictionary<string, VariableCollection>();
-		public           VariableCollection                      GlobalVariables = new();
+		public static VariableCollection GlobalVariables = new();
 
 		private ScriptCom[] _bytecode = Array.Empty<ScriptCom>();
 
@@ -71,7 +71,7 @@ namespace GS2Engine.GS2.Script
 		private void Reset()
 		{
 			Machine.Reset();
-			GlobalVariables.Clear();
+			//GlobalVariables.Clear();
 			Functions.Clear();
 			GlobalObjects.Clear();
 			ExternalFunctions.Clear();

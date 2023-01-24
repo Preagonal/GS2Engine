@@ -8,6 +8,7 @@
 		Boolean,
 		Array,
 		ArrayStart,
-		Player
+		Player,
+		Function
 	}
 }

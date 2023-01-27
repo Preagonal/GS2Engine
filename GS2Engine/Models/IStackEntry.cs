@@ -8,5 +8,6 @@ namespace GS2Engine.Models
 		public object?        GetValue();
 		public T?             GetValue<T>();
 		void                  SetValue(object? getValue);
+		bool                  TryGetValue<T>(out object? value);
 	}
 }

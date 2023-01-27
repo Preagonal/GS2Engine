@@ -7,15 +7,24 @@ namespace GS2Engine.Models
 	{
 		private readonly Dictionary<string, IStackEntry> _collection = new();
 
-		public VariableCollection() {}
-		public VariableCollection(IDictionary<string, IStackEntry>? collection) => AddOrUpdate(collection);
-
-		public IStackEntry GetVariable(TString variable)
+		public VariableCollection()
 		{
-			return _collection.TryGetValue(variable, out IStackEntry? entry) ? entry : SetVariable(variable, "".ToStackEntry());
 		}
 
-		public void        Clear()                        => _collection.Clear();
+		public VariableCollection(IDictionary<string, IStackEntry>? collection) => AddOrUpdate(collection);
+
+		public IStackEntry this[TString key]
+		{
+			get => GetVariable(key);
+			set => SetVariable(key, value);
+		}
+
+		public IStackEntry GetVariable(TString variable) =>
+			_collection.TryGetValue(variable, out IStackEntry? entry)
+				? entry
+				: SetVariable(variable, "".ToStackEntry());
+
+		public void Clear() => _collection.Clear();
 
 		public IStackEntry AddOrUpdate(TString variable, IStackEntry value)
 		{
@@ -26,12 +35,6 @@ namespace GS2Engine.Models
 
 			return _collection[variable];
 		}
-		
-		public IStackEntry this[TString key]
-		{
-			get => GetVariable(key);
-			set => SetVariable(key, value);
-		}
 
 		public IStackEntry SetVariable(TString variable, IStackEntry value) => AddOrUpdate(variable, value);
 
@@ -40,10 +43,11 @@ namespace GS2Engine.Models
 		public void AddOrUpdate(IDictionary<string, IStackEntry>? collection)
 		{
 			if (collection != null)
-				foreach (KeyValuePair<string,IStackEntry> variable in collection) AddOrUpdate(variable.Key, variable.Value);
+				foreach (KeyValuePair<string, IStackEntry> variable in collection)
+					AddOrUpdate(variable.Key, variable.Value);
 		}
 
-		public IDictionary<string,IStackEntry> GetDictionary() => _collection;
+		public IDictionary<string, IStackEntry> GetDictionary() => _collection;
 
 		public void AddOrUpdate(VariableCollection? collection)
 		{

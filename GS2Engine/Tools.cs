@@ -48,7 +48,7 @@ namespace GS2Engine
 				TypeCode.UInt32  => zeroIsPositive || (uint)value > 0,
 				TypeCode.UInt64  => zeroIsPositive || (ulong)value > 0,
 				TypeCode.Char    => zeroIsPositive || (char)value != '\0',
-				_                => false
+				_                => false,
 			};
 
 		#endregion
@@ -78,7 +78,7 @@ namespace GS2Engine
 					TypeCode.Double  => (double)value,
 					TypeCode.Decimal => (decimal)value,
 					TypeCode.Empty   => null,
-					_                => null
+					_                => null,
 				};
 			return null;
 		}
@@ -107,7 +107,7 @@ namespace GS2Engine
 					TypeCode.Single  => round ? (long)Math.Round((float)value) : (long)(float)value,
 					TypeCode.Double  => round ? (long)Math.Round((double)value) : (long)(double)value,
 					TypeCode.Decimal => round ? (long)Math.Round((decimal)value) : (long)(decimal)value,
-					_                => 0
+					_                => 0,
 				};
 			return 0;
 		}
@@ -150,13 +150,13 @@ namespace GS2Engine
 					"\n",
 				"t" => // Tab
 					"\t",
-				_ => m.Groups[2].Value
+				_ => m.Groups[2].Value,
 			};
 		}
 
 		#endregion
 
-		public static bool DEBUG_ON = false;
+		public static bool DEBUG_ON { get; set; } = false;
 
 		public static void Debug(string? text)
 		{

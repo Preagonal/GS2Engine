@@ -9,7 +9,7 @@
 				BytecodeSegment.FunctionNames => "FunctionNames",
 				BytecodeSegment.Strings       => "Strings",
 				BytecodeSegment.Bytecode      => "Bytecode",
-				_                             => "Unknown"
+				_                             => "Unknown",
 			};
 
 		public static bool IsBooleanReturningOp(this Opcode opcode) =>
@@ -24,7 +24,7 @@
 				Opcode.OP_GTE      => true,
 				Opcode.OP_IN_RANGE => true,
 				Opcode.OP_IN_OBJ   => true,
-				_                  => false
+				_                  => false,
 			};
 
 		public static bool IsReservedIdentOp(this Opcode opcode) =>
@@ -36,7 +36,7 @@
 				Opcode.OP_PLAYERO => true,
 				Opcode.OP_LEVEL   => true,
 				Opcode.OP_TEMP    => true,
-				_                 => false
+				_                 => false,
 			};
 
 		public static bool IsObjectReturningOp(this Opcode opcode) =>
@@ -48,7 +48,7 @@
 				Opcode.OP_PLAYERO => true,
 				Opcode.OP_LEVEL   => true,
 				Opcode.OP_TEMP    => true,
-				_                 => false
+				_                 => false,
 			};
 
 		public static TString OpcodeToString(this Opcode opcode) =>
@@ -123,7 +123,7 @@
 				Opcode.OP_PLAYERO         => "OP_PLAYERO",
 				Opcode.OP_LEVEL           => "OP_LEVEL",
 				Opcode.OP_TEMP            => "OP_TEMP",
-				_                         => "OP " + (int)opcode
+				_                         => "OP " + (int)opcode,
 			};
 	}
 }

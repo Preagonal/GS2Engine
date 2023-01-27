@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GS2Engine.Enums;
+using GS2Engine.GS2.Script;
 using GS2Engine.Models;
 
 namespace GS2Engine.Extensions
@@ -9,11 +10,11 @@ namespace GS2Engine.Extensions
 	public static class StackEntryExtensions
 	{
 		public static StackEntry ToStackEntry(this object stackObject, bool isVariable = false) =>
-			new(isVariable?StackEntryType.Variable:GetStackEntryType(stackObject), FixStackValue(stackObject));
+			new(isVariable ? StackEntryType.Variable : GetStackEntryType(stackObject), FixStackValue(stackObject));
 
-		private static object? FixStackValue(object stackObject)
+		private static object FixStackValue(object stackObject)
 		{
-			return stackObject  switch
+			return stackObject switch
 			{
 				string           => (TString)stackObject.ToString(),
 				TString          => stackObject,
@@ -50,10 +51,25 @@ namespace GS2Engine.Extensions
 					return StackEntryType.String;
 				default:
 				{
-					if (stackObject.GetType() == typeof(TString))
+					Type stackType = stackObject.GetType();
+					if (stackType == typeof(TString))
 						return StackEntryType.String;
 
-					if (stackObject.GetType().IsGenericType && stackObject.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)))
+					if (stackType == typeof(Script.Command))
+						return StackEntryType.Function;
+
+					if (stackType.GetInterfaces()
+					             .Any(x => x.Name.Equals("IGuiControl", StringComparison.CurrentCultureIgnoreCase)))
+						return StackEntryType.Array;
+
+					if (stackType == typeof(VariableCollection))
+						return StackEntryType.Array;
+
+					if (stackObject is float)
+						return StackEntryType.Number;
+
+					if (stackType.IsGenericType &&
+					    stackType.GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)))
 						return StackEntryType.Array;
 
 					throw new ArgumentOutOfRangeException();

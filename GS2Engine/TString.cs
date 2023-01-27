@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
@@ -10,7 +11,6 @@ namespace GS2Engine
 	{
 		public  byte[] buffer = Array.Empty<byte>();
 		private int    readc;
-		private int    stringLength;
 		private int    writePos;
 
 		private TString(string str)
@@ -21,44 +21,44 @@ namespace GS2Engine
 		private TString(byte[] str)
 		{
 			buffer = str;
-			stringLength = buffer.Length;
+			Length = buffer.Length;
 		}
 
 		public TString()
 		{
 		}
 
-		public int Length => stringLength;
+		public int Length { get; private set; }
 
 		private void AddBuffer(string input, int length = 0)
 		{
-			Array.Resize(ref buffer, stringLength + length);
+			Array.Resize(ref buffer, Length + length);
 			foreach (byte c in Encoding.ASCII.GetBytes(input))
 			{
 				buffer[writePos] = c;
 				writePos++;
-				stringLength++;
+				Length++;
 			}
 		}
 
-		private void AddBuffer(byte[] input, int start, int length = 0)
+		private void AddBuffer(IReadOnlyList<byte> input, int start, int length = 0)
 		{
-			Array.Resize(ref buffer, stringLength + length);
+			Array.Resize(ref buffer, Length + length);
 			for (int i = start; i < start + length; i++)
 			{
 				buffer[writePos] = input[i];
 				writePos++;
-				stringLength++;
+				Length++;
 			}
 		}
 
 		private void AddBuffer(byte input)
 		{
-			Array.Resize(ref buffer, stringLength + 1);
+			Array.Resize(ref buffer, Length + 1);
 
 			buffer[writePos] = input;
 			writePos++;
-			stringLength++;
+			Length++;
 		}
 
 		public static implicit operator string(TString d) => Encoding.ASCII.GetString(d.buffer);
@@ -73,7 +73,7 @@ namespace GS2Engine
 
 		public void setRead(int i) => readc = i;
 
-		public int bytesLeft() => stringLength - readc;
+		public int bytesLeft() => Length - readc;
 
 		public int readInt()
 		{
@@ -115,7 +115,7 @@ namespace GS2Engine
 				pDest[i] = data;
 		}
 
-		public int length() => stringLength;
+		public int length() => Length;
 
 		public TString readChars(int pLength)
 		{
@@ -153,7 +153,7 @@ namespace GS2Engine
 		public void removeStart(int i)
 		{
 			buffer = buffer.Skip(i).ToArray();
-			stringLength = buffer.Length;
+			Length = buffer.Length;
 		}
 
 		public override string ToString() => Encoding.ASCII.GetString(buffer);

@@ -5,7 +5,7 @@
 		<Nullable>enable</Nullable>
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 		<LangVersion>latest</LangVersion>
-		<TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+		<TargetFramework>net7.0</TargetFramework>
 		<Title>GS2Engine</Title>
 		<Authors>Preagonal</Authors>
 		<Copyright>Preagonal 2023</Copyright>
@@ -14,6 +14,7 @@
 		<AssemblyVersion>1.0.0</AssemblyVersion>
 		<FileVersion>1.0.0</FileVersion>
 		<NeutralLanguage>en-US</NeutralLanguage>
+		<PublishAot>true</PublishAot>
 	</PropertyGroup>
 
 	<PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
@@ -21,19 +22,18 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.2"/>
-		<PackageReference Include="System.Collections" Version="4.3.0"/>
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+		<PackageReference Include="System.Collections" Version="4.3.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<Compile Remove="Program.cs"/>
-		<Compile Remove="Native.cs"/>
-		<Compile Remove="TestApp\**"/>
-		<None Remove="TestApp\**"/>
+		<Compile Remove="Program.cs" />
+		<Compile Remove="TestApp\**" />
+		<None Remove="TestApp\**" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<EmbeddedResource Remove="TestApp\**"/>
+		<EmbeddedResource Remove="TestApp\**" />
 	</ItemGroup>
 
 	<ItemGroup>

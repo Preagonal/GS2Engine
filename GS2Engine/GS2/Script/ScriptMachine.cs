@@ -15,26 +15,24 @@ namespace GS2Engine.GS2.Script
 {
 	public class ScriptMachine
 	{
-		private          Dictionary<string, Script.Command> Functions => _script.ExternalFunctions;
-		private readonly Script                             _script;
-		private readonly VariableCollection                 _tempVariables = new();
+		private readonly Script             _script;
+		private readonly VariableCollection _tempVariables = new();
 
 		private bool _firstRun = true;
 		private int  _indexPos;
 		private int  _scriptStackSize;
 		private bool _useTemp;
 
-		public ScriptMachine(Script script)
-		{
-			_script = script;
-		}
+		public ScriptMachine(Script script) => _script = script;
+
+		private Dictionary<string, Script.Command> Functions => _script.ExternalFunctions;
 
 		public async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? callStack = null)
 		{
 			if (!_script.Functions.TryGetValue(functionName.ToLower(), out FunctionParams value))
 				return 0.ToStackEntry();
 
-			Stack<IStackEntry>? stack = new();
+			Stack<IStackEntry> stack = new();
 
 			int desiredStart = value.BytecodePosition;
 			int index = _firstRun ? 0 : value.BytecodePosition;
@@ -155,15 +153,32 @@ namespace GS2Engine.GS2.Script
 					case Opcode.OP_CALL:
 						IStackEntry? callEntry = GetEntry(stack.Pop());
 						object? cmd = getEntryValue<object>(callEntry);
-						
+
 						Stack<IStackEntry> parameters = stack.Clone();
-						stack.Clear();
+						while (stack.Peek()?.Type != ArrayStart) stack.Pop();
+						stack.Pop();
+						bool opWithHasFunc = false;
+						if (opWith?.Any() ?? false)
+							opWithHasFunc =
+								opWith?.Peek()
+								      ?.GetValue<VariableCollection>()
+								      ?.ContainsVariable(cmd?.ToString()?.ToLower() ?? string.Empty) ??
+								false;
 						switch (callEntry.Type)
 						{
-							case StackEntryType.String or Variable when opWith.Any():
-								stack.Push(opWith?.Peek()?.GetValue<VariableCollection>()?.GetVariable(cmd?.ToString()?.ToLower() ?? string.Empty).GetValue<Script.Command>()?.Invoke(this, parameters.ToArray()) ?? 0.ToStackEntry());
+							case StackEntryType.String or Variable when opWithHasFunc:
+								IStackEntry funcRet =
+									opWith?.Peek()
+									      ?.GetValue<VariableCollection>()
+									      ?.GetVariable(cmd?.ToString()?.ToLower() ?? string.Empty)
+									      ?.GetValue<Script.Command>()
+									      ?.Invoke(this, parameters.ToArray()) ??
+									0.ToStackEntry();
+								if (funcRet.GetValue() is not (double)0)
+									stack.Push(funcRet);
 								break;
-							case StackEntryType.String or Variable when _script.Functions.ContainsKey(cmd?.ToString().ToLower() ?? string.Empty):
+							case StackEntryType.String or Variable
+								when _script.Functions.ContainsKey(cmd?.ToString().ToLower() ?? string.Empty):
 								stack.Push(await Execute(cmd?.ToString().ToLower() ?? string.Empty, parameters));
 								break;
 							case StackEntryType.String or Variable when Functions.TryGetValue(
@@ -176,7 +191,9 @@ namespace GS2Engine.GS2.Script
 								stack.Push(0.ToStackEntry());
 								break;
 							case Function:
-								stack.Push((cmd as Script.Command)?.Invoke(this, parameters.ToArray()) ?? 0.ToStackEntry());
+								stack.Push(
+									(cmd as Script.Command)?.Invoke(this, parameters.ToArray()) ?? 0.ToStackEntry()
+								);
 								break;
 							default:
 								stack.Push(0.ToStackEntry());
@@ -188,7 +205,9 @@ namespace GS2Engine.GS2.Script
 						IStackEntry ret = 0.ToStackEntry();
 						if (stack.Count > 0)
 							ret = stack.Pop();
-						Tools.DebugLine(JsonConvert.SerializeObject(Script.GlobalVariables.GetDictionary(), Formatting.Indented));
+						Tools.DebugLine(
+							JsonConvert.SerializeObject(Script.GlobalVariables.GetDictionary(), Formatting.Indented)
+						);
 						return ret;
 					case Opcode.OP_SLEEP:
 						double sleep = getEntryValue<double>(stack.Pop());
@@ -199,7 +218,9 @@ namespace GS2Engine.GS2.Script
 						//index = _script.Field170Xc0;
 						if ((int)op.Value == index)
 						{
-							if (maxLoopCount <= op.LoopCount) throw new ScriptException("Loop limit exceeded");
+							if (maxLoopCount <= op.LoopCount &&
+							    !functionName.Equals("onTimeout", StringComparison.CurrentCultureIgnoreCase))
+								throw new ScriptException("Loop limit exceeded");
 
 							op.LoopCount += 1;
 							index = _indexPos;
@@ -259,13 +280,15 @@ namespace GS2Engine.GS2.Script
 						object? test = getEntryValue<object>(stack.Pop());
 
 						double convToFloatVal;
-						if (test?.GetType() == typeof(TString))
-							
-							convToFloatVal = double.Parse((TString)test);
+						if (test?.GetType() == typeof(TString) &&
+						    double.TryParse((TString)test, out double convToFloatParse))
+							convToFloatVal = convToFloatParse;
 						else if (test?.GetType() == typeof(bool))
 							convToFloatVal = (bool)test ? 1 : 0;
+						else if (test?.GetType() == typeof(double))
+							convToFloatVal = (double)test;
 						else
-							convToFloatVal = (double)(test ?? 0);
+							convToFloatVal = 0;
 
 
 						stack.Push(convToFloatVal.ToStackEntry());
@@ -276,7 +299,7 @@ namespace GS2Engine.GS2.Script
 					case Opcode.OP_MEMBER_ACCESS:
 						IStackEntry? stackVal = stack.Pop();
 						TString? memberAccessParam = getEntryValue<TString>(stackVal, StackEntryType.String);
-						
+
 						try
 						{
 							VariableCollection? memberAccessObject = getEntryValue<VariableCollection>(stack.Pop());
@@ -291,26 +314,29 @@ namespace GS2Engine.GS2.Script
 
 						break;
 					case Opcode.OP_CONV_TO_OBJECT:
-						stack.Push(
-							(opWith.Any()
-								? opWith?.Peek()
-								        ?.GetValue<VariableCollection>()?
-								        .GetVariable(getEntryValue<TString>(stack.Pop())?.ToLower() ?? string.Empty)
-								: GetEntry(stack.Pop(), Variable))!
-						);
+						IStackEntry convEntry = GetEntry(stack.Pop());
+						if (convEntry.Type is StackEntryType.String or Variable)
+							stack.Push(
+								(opWith.Any()
+									? opWith?.Peek()
+									        ?.GetValue<VariableCollection>()
+									        ?.GetVariable(getEntryValue<TString>(convEntry)?.ToLower() ?? string.Empty)
+									: GetEntry(convEntry, Variable))!
+							);
+						else
+							stack.Push(convEntry);
+
 						break;
 					case Opcode.OP_ARRAY_END:
 
-						List<object> stackArr = new List<object>();
+						List<object> stackArr = new();
 						//keep popping the stack till we hit an array start
 						while (stack.Count > 0 && stack.Peek().Type != ArrayStart)
-						{
 							stackArr.Add(GetEntry(stack.Pop())?.GetValue() ?? 0.ToStackEntry());
-						}
-                        stack.Pop(); //pop array start marker off
+						stack.Pop(); //pop array start marker off
 
-						stack.Push(new StackEntry(StackEntryType.Array, stackArr));//push new array onto stack
-                        break;
+						stack.Push(new StackEntry(StackEntryType.Array, stackArr)); //push new array onto stack
+						break;
 					case Opcode.OP_ARRAY_NEW:
 						break;
 					case Opcode.OP_SETARRAY:
@@ -332,6 +358,7 @@ namespace GS2Engine.GS2.Script
 						}
 						catch (Exception e)
 						{
+							Tools.DebugLine(e.Message);
 							stack.Push(0.ToStackEntry());
 						}
 
@@ -340,18 +367,19 @@ namespace GS2Engine.GS2.Script
 						break;
 					case Opcode.OP_ASSIGN:
 						IStackEntry val = stack.Pop();
-						
-						IStackEntry variable = (stack.Count == 0?opCopy:GetEntry(stack.Pop())) ?? 0.ToStackEntry();
-						/*if (variable.Type != Variable)
+
+						IStackEntry variable = (stack.Count == 0 ? opCopy : GetEntry(stack.Pop())) ?? 0.ToStackEntry();
+						if (variable.Type != Variable /*StackEntryType.String or Number val.Type*/)
 						{
 							variable.SetValue(val.GetValue());
-						}*/
-						if (opWith.Any())
+						}
+						else if (opWith.Any())
 						{
 							try
 							{
-								opWith?.Peek()?.GetValue<VariableCollection>()?
-									.AddOrUpdate((variable.GetValue() ?? "").ToString().ToLower(), val);
+								opWith?.Peek()
+								      ?.GetValue<VariableCollection>()
+								      ?.AddOrUpdate((variable.GetValue() ?? "").ToString().ToLower(), val);
 							}
 							catch (Exception e)
 							{
@@ -376,29 +404,43 @@ namespace GS2Engine.GS2.Script
 							try
 							{
 								IStackEntry? funcParamVal = callStack?.Pop();
-								_tempVariables.AddOrUpdate((funcParam.GetValue() ?? "").ToString().ToLower(), funcParamVal ?? 0.ToStackEntry());
+								_tempVariables.AddOrUpdate(
+									(funcParam.GetValue() ?? "").ToString().ToLower(),
+									funcParamVal ?? 0.ToStackEntry()
+								);
 							}
 							catch (Exception e)
 							{
 								// ignored
 								Tools.DebugLine(e.Message);
 							}
-
 						}
 
 						index = _indexPos;
 						break;
 					case Opcode.OP_INC:
-						IStackEntry incVar = GetEntry(stack.Pop());
-						double incVal = getEntryValue<double>(stack.Pop());
-						if (incVar.Type == Number) incVar.SetValue(incVal + 1);
+						try
+						{
+							IStackEntry incVar = GetEntry(stack.Pop());
 
-						stack.Push(((double?)incVar.GetValue())?.ToStackEntry() ?? 0.ToStackEntry());
+							double incVal = stack.Any()
+								? getEntryValue<double>(stack.Pop())
+								: getEntryValue<double>(incVar);
+							if (incVar.Type == Number) incVar.SetValue(incVal + 1);
+
+							stack.Push(((double?)incVar.GetValue())?.ToStackEntry() ?? 0.ToStackEntry());
+						}
+						catch (Exception e)
+						{
+							Tools.DebugLine(e.Message);
+							stack.Push(0.ToStackEntry());
+						}
 
 						break;
 					case Opcode.OP_DEC:
 						IStackEntry decVar = GetEntry(stack.Pop());
-						double decVal = getEntryValue<double>(stack.Pop());
+						double decVal =
+							stack.Any() ? getEntryValue<double>(stack.Pop()) : getEntryValue<double>(decVar);
 						if (decVar.Type == Number) decVar.SetValue(decVal - 1);
 
 						stack.Push(((double?)decVar.GetValue())?.ToStackEntry() ?? 0.ToStackEntry());
@@ -552,26 +594,49 @@ namespace GS2Engine.GS2.Script
 					case Opcode.OP_OBJ_POSITIONS:
 						break;
 					case Opcode.OP_OBJ_SIZE:
+						object? objSizeVar = GetEntry(stack.Pop()).GetValue();
+
+						if (objSizeVar is VariableCollection vc)
+							stack.Push(vc.GetDictionary().Count.ToStackEntry());
+						else if (objSizeVar is List<string> ls)
+							stack.Push(ls.Count.ToStackEntry());
+						else if (objSizeVar is List<object> lo)
+							stack.Push(lo.Count.ToStackEntry());
+						else
+							stack.Push(0.ToStackEntry());
+
 						break;
 					case Opcode.OP_ARRAY:
 						double arrayIndex = getEntryValue<double>(stack.Pop());
 						object? array = getEntryValue<object>(stack.Pop());
 
 						if (array?.GetType() == typeof(List<string>))
-						{
-							stack.Push(((List<string>?)array)?[(int)arrayIndex].ToStackEntry() ?? new object().ToStackEntry());
-						}
+							stack.Push(
+								((List<string>?)array)?[(int)arrayIndex].ToStackEntry() ?? new object().ToStackEntry()
+							);
 						else if (array?.GetType() == typeof(List<int>))
-						{
-							stack.Push(((List<int>?)array)?[(int)arrayIndex].ToStackEntry() ?? new object().ToStackEntry());
-						}
+							stack.Push(
+								((List<int>?)array)?[(int)arrayIndex].ToStackEntry() ?? new object().ToStackEntry()
+							);
 						else
-						{
-							stack.Push(((List<object>?)array)?[(int)arrayIndex].ToStackEntry() ?? new object().ToStackEntry());
-						}
+							stack.Push(
+								((List<object>?)array)?[(int)arrayIndex].ToStackEntry() ?? new object().ToStackEntry()
+							);
 
 						break;
 					case Opcode.OP_ARRAY_ASSIGN:
+						try
+						{
+							IStackEntry arrAssVal = GetEntry(stack.Pop());
+							double arrAssIndex = GetEntry(stack.Pop()).GetValue<double>();
+							VariableCollection? arrAssObj = GetEntry(stack.Pop()).GetValue<VariableCollection>();
+							arrAssObj?.AddOrUpdate(((int)arrAssIndex).ToString(), arrAssVal);
+						}
+						catch (Exception e)
+						{
+							Tools.DebugLine(e.Message);
+						}
+
 						break;
 					case Opcode.OP_ARRAY_MULTIDIM:
 						break;
@@ -594,10 +659,10 @@ namespace GS2Engine.GS2.Script
 					case Opcode.OP_ARRAY_NEW_MULTIDIM:
 						break;
 					case Opcode.OP_WITH:
-						opWith.Push(stack.Pop());
+						opWith?.Push(stack.Pop());
 						break;
 					case Opcode.OP_WITHEND:
-						stack.Push(opWith.Pop());
+						opWith?.Pop(); //stack.Push();
 						break;
 					case Opcode.OP_FOREACH:
 						break;
@@ -632,20 +697,27 @@ namespace GS2Engine.GS2.Script
 			return 0.ToStackEntry();
 		}
 
-		private static object? GetInstance(string? strFullyQualifiedName, string arg)
+		private object? GetInstance(string className, string arg)
 		{
-			if (string.IsNullOrEmpty(strFullyQualifiedName)) return null;
-			Type? type = Type.GetType(strFullyQualifiedName);
+			if (string.IsNullOrEmpty(className)) return null;
+			if (className.EndsWith("Profile", StringComparison.CurrentCultureIgnoreCase))
+				return new GuiControl(arg, _script);
+
+			Type? type = Type.GetType(className);
 			if (type != null)
-				return Activator.CreateInstance(type, arg);
+				return Activator.CreateInstance(type, arg, _script);
 			foreach (Assembly? asm in AppDomain.CurrentDomain.GetAssemblies())
 			{
-				type = asm.GetTypes().FirstOrDefault(x => x.Name.Equals(strFullyQualifiedName, StringComparison.CurrentCultureIgnoreCase)) ?? null;
+				type = asm.GetTypes()
+				          .FirstOrDefault(x => x.Name.Equals(className, StringComparison.CurrentCultureIgnoreCase)) ??
+				       null;
 				if (type != null)
-					return Activator.CreateInstance(type, arg);
+					return Activator.CreateInstance(type, arg, _script);
 			}
-			return null;
+
+			throw new ScriptException($"Missing Class: {className}");
 		}
+
 		public IStackEntry GetEntry(IStackEntry stackEntry, StackEntryType? overrideStackType = null)
 		{
 			StackEntryType? type = overrideStackType ?? stackEntry.Type;
@@ -656,17 +728,23 @@ namespace GS2Engine.GS2.Script
 					_useTemp = false;
 					return _tempVariables.GetVariable(stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty);
 				case Variable
-					when Script.GlobalVariables.ContainsVariable(stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty):
-					return Script.GlobalVariables[stackEntry.GetValue()?.ToString()?.ToLower()?? string.Empty];
-				case Variable
-					when _script.GlobalObjects.ContainsKey(stackEntry.GetValue()?.ToString()?.ToLower()?? string.Empty):
-					return _script.GlobalObjects[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty].ToStackEntry();
+					when Script.GlobalVariables.ContainsVariable(
+						stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty
+					):
+					return Script.GlobalVariables[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty];
+				case Variable when _script != null &&
+				                   _script.GlobalObjects.ContainsKey(
+					                   stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty
+				                   ):
+					return _script.GlobalObjects[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty]
+					              .ToStackEntry();
 				default:
 					return stackEntry;
 			}
 		}
 
-		private T? getEntryValue<T>(IStackEntry stackEntry, StackEntryType? overrideStackType = null) => (T?)GetEntry(stackEntry, overrideStackType).GetValue();
+		private T? getEntryValue<T>(IStackEntry stackEntry, StackEntryType? overrideStackType = null) =>
+			(T?)GetEntry(stackEntry, overrideStackType).GetValue();
 
 		public void Reset()
 		{

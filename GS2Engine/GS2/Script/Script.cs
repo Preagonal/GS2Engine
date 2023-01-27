@@ -13,14 +13,20 @@ namespace GS2Engine.GS2.Script
 {
 	public class Script
 	{
-		private readonly List<TString>                           _strings  = new();
-		public readonly  Dictionary<string, FunctionParams>      Functions = new();
-		public           IDictionary<string, VariableCollection> GlobalObjects   = new Dictionary<string, VariableCollection>();
+		public delegate IStackEntry Command(ScriptMachine machine, IStackEntry[]? args);
+
 		public static VariableCollection GlobalVariables = new();
-
+		private readonly List<TString> _strings = new();
+		public readonly Dictionary<string, FunctionParams> Functions = new();
 		private ScriptCom[] _bytecode = Array.Empty<ScriptCom>();
+		public IDictionary<string, VariableCollection> GlobalObjects = new Dictionary<string, VariableCollection>();
 
-		public Script(TString bytecodeFile, IDictionary<string, VariableCollection>? objects, VariableCollection? variables, Dictionary<string, Command>? functions)
+		public Script(
+			TString bytecodeFile,
+			IDictionary<string, VariableCollection>? objects,
+			VariableCollection? variables,
+			Dictionary<string, Command>? functions
+		)
 		{
 			Name = Path.GetFileNameWithoutExtension(bytecodeFile);
 			File = bytecodeFile;
@@ -28,54 +34,6 @@ namespace GS2Engine.GS2.Script
 			SetStream(ReadAllBytes(bytecodeFile));
 
 			Init(objects, variables, functions);
-		}
-		
-		public void UpdateFromFile(string scriptFile, IDictionary<string, VariableCollection>? objects, VariableCollection? variables, Dictionary<string, Command>? functions)
-		{
-			Name = Path.GetFileNameWithoutExtension(scriptFile);
-			File = scriptFile;
-			SetStream(ReadAllBytes(scriptFile));
-			
-			Init(objects, variables, functions);
-		}
-
-		public void UpdateFromByteCode(byte[] byteCode,IDictionary<string, VariableCollection>? objects, VariableCollection? variables, Dictionary<string, Command>? functions)
-		{
-			SetStream(byteCode);
-
-			Init(objects, variables, functions);
-		}
-
-		private void Init(IDictionary<string, VariableCollection>? objects, VariableCollection? variables, Dictionary<string, Command>? functions)
-		{
-			if (objects != null)
-				GlobalObjects = objects;
-
-			if (variables != null)
-				GlobalVariables = variables;
-
-			if (functions != null)
-				foreach (KeyValuePair<string, Command> obj in functions)
-					ExternalFunctions.Add(obj.Key, obj.Value);
-
-			ExternalFunctions.Add("settimer", delegate(ScriptMachine machine, IStackEntry[]? args)
-			{
-				if (args?.Length > 0)
-					SetTimer((double)(machine.GetEntry(args[0]).GetValue() ?? 0));
-				return 0.ToStackEntry();
-			});
-
-			Execute("onCreated").ConfigureAwait(false).GetAwaiter().GetResult();
-		}
-		public delegate IStackEntry Command(ScriptMachine machine, IStackEntry[]? args);
-		private void Reset()
-		{
-			Machine.Reset();
-			//GlobalVariables.Clear();
-			Functions.Clear();
-			GlobalObjects.Clear();
-			ExternalFunctions.Clear();
-			_bytecode = Array.Empty<ScriptCom>();
 		}
 
 		private int BytecodeLength => _bytecode.Length;
@@ -88,6 +46,71 @@ namespace GS2Engine.GS2.Script
 
 		public ScriptCom[]                 Bytecode          => _bytecode;
 		public Dictionary<string, Command> ExternalFunctions { get; } = new();
+
+		public void UpdateFromFile(
+			string scriptFile,
+			IDictionary<string, VariableCollection>? objects,
+			VariableCollection? variables,
+			Dictionary<string, Command>? functions
+		)
+		{
+			Name = Path.GetFileNameWithoutExtension(scriptFile);
+			File = scriptFile;
+			SetStream(ReadAllBytes(scriptFile));
+
+			Init(objects, variables, functions);
+		}
+
+		public void UpdateFromByteCode(
+			byte[] byteCode,
+			IDictionary<string, VariableCollection>? objects,
+			VariableCollection? variables,
+			Dictionary<string, Command>? functions
+		)
+		{
+			SetStream(byteCode);
+
+			Init(objects, variables, functions);
+		}
+
+		private void Init(
+			IDictionary<string, VariableCollection>? objects,
+			VariableCollection? variables,
+			Dictionary<string, Command>? functions
+		)
+		{
+			if (objects != null)
+				GlobalObjects = objects;
+
+			if (variables != null)
+				GlobalVariables = variables;
+
+			if (functions != null)
+				foreach (KeyValuePair<string, Command> obj in functions)
+					ExternalFunctions?.Add(obj.Key, obj.Value);
+
+			ExternalFunctions?.Add(
+				"settimer",
+				delegate(ScriptMachine machine, IStackEntry[]? args)
+				{
+					if (args?.Length > 0)
+						SetTimer((double)(machine.GetEntry(args[0]).GetValue() ?? 0));
+					return 0.ToStackEntry();
+				}
+			);
+
+			Execute("onCreated").ConfigureAwait(false).GetAwaiter().GetResult();
+		}
+
+		private void Reset()
+		{
+			Machine.Reset();
+			//GlobalVariables.Clear();
+			Functions.Clear();
+			GlobalObjects.Clear();
+			ExternalFunctions?.Clear();
+			_bytecode = Array.Empty<ScriptCom>();
+		}
 
 
 		private void SetStream(TString bytecodeParam)
@@ -217,7 +240,7 @@ namespace GS2Engine.GS2.Script
 								}
 								case 0xF3:
 								{
-									byte varIndex = segmentSection.readChar();
+									sbyte varIndex = (sbyte)segmentSection.readChar();
 									op.Value = varIndex;
 									Tools.Debug($" - double({op.Value}) (byte)\n");
 									break;
@@ -326,11 +349,20 @@ namespace GS2Engine.GS2.Script
 
 		private static void optimizeByteCode()
 		{
-			
 		}
 
-		private async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? parameters = null) =>
-			await Machine.Execute(functionName, parameters);
+		private async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? parameters = null)
+		{
+			try
+			{
+				return await Machine.Execute(functionName, parameters);
+			}
+			catch (Exception e)
+			{
+				Tools.DebugLine(e.Message);
+				return 0.ToStackEntry();
+			}
+		}
 
 		/// <summary>
 		///     Function -> Call Event for Object
@@ -394,14 +426,14 @@ namespace GS2Engine.GS2.Script
 		}
 
 		private void SetTimer(double value) => Timer = DateTime.UtcNow.AddSeconds(value);
-		
+
 
 		public async Task<IStackEntry> RunEvents()
 		{
 			if (Timer <= DateTime.UtcNow)
 			{
 				Timer = null;
-				return await Execute("onTimeout");
+				return await Execute("onTimeout").ConfigureAwait(false);
 			}
 
 			return 0.ToStackEntry();

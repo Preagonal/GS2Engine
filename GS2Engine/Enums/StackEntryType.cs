@@ -9,6 +9,6 @@
 		Array,
 		ArrayStart,
 		Player,
-		Function
+		Function,
 	}
 }

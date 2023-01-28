@@ -9,10 +9,10 @@ namespace GS2Engine.Extensions
 {
 	public static class StackEntryExtensions
 	{
-		public static StackEntry ToStackEntry(this object stackObject, bool isVariable = false) =>
+		public static StackEntry ToStackEntry(this object? stackObject, bool isVariable = false) =>
 			new(isVariable ? StackEntryType.Variable : GetStackEntryType(stackObject), FixStackValue(stackObject));
 
-		private static object FixStackValue(object stackObject)
+		private static object? FixStackValue(object? stackObject)
 		{
 			return stackObject switch
 			{
@@ -28,9 +28,9 @@ namespace GS2Engine.Extensions
 			};
 		}
 
-		private static StackEntryType GetStackEntryType(object stackObject)
+		private static StackEntryType GetStackEntryType(object? stackObject)
 		{
-			switch (Type.GetTypeCode(stackObject.GetType()))
+			switch (Type.GetTypeCode(stackObject?.GetType()))
 			{
 				case TypeCode.Boolean:
 					return StackEntryType.Boolean;
@@ -51,15 +51,15 @@ namespace GS2Engine.Extensions
 					return StackEntryType.String;
 				default:
 				{
-					Type stackType = stackObject.GetType();
+					Type? stackType = stackObject?.GetType();
 					if (stackType == typeof(TString))
 						return StackEntryType.String;
 
 					if (stackType == typeof(Script.Command))
 						return StackEntryType.Function;
 
-					if (stackType.GetInterfaces()
-					             .Any(x => x.Name.Equals("IGuiControl", StringComparison.CurrentCultureIgnoreCase)))
+					if (stackType != null && stackType.GetInterfaces()
+					                                  .Any(x => x.Name.Equals("IGuiControl", StringComparison.CurrentCultureIgnoreCase)))
 						return StackEntryType.Array;
 
 					if (stackType == typeof(VariableCollection))
@@ -68,7 +68,7 @@ namespace GS2Engine.Extensions
 					if (stackObject is float)
 						return StackEntryType.Number;
 
-					if (stackType.IsGenericType &&
+					if (stackType is { IsGenericType: true } &&
 					    stackType.GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)))
 						return StackEntryType.Array;
 

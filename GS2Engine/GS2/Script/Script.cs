@@ -124,9 +124,7 @@ namespace GS2Engine.GS2.Script
 		private void Reset()
 		{
 			Machine.Reset();
-			//GlobalVariables.Clear();
 			Functions.Clear();
-			GlobalObjects.Clear();
 			ExternalFunctions?.Clear();
 			_bytecode = Array.Empty<ScriptCom>();
 		}
@@ -288,6 +286,7 @@ namespace GS2Engine.GS2.Script
 										doubleString.writeChar(ch);
 									}
 
+									doubleString = doubleString.ToString().Replace("--", "");
 									op.Value = double.Parse(doubleString.ToString(), CultureInfo.InvariantCulture);
 									Tools.Debug($" - double({op.Value}) (string)\n");
 									break;

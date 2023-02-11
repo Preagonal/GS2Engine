@@ -235,9 +235,11 @@ namespace GS2Engine.Models
 		public void AddControl(IGuiControl? obj)
 		{
 			if (obj == null) return;
-
 			obj.parent = this;
-			Controls.Add(obj);
+			lock (Controls)
+			{
+				Controls.Add(obj);
+			}
 		}
 
 		public virtual void Draw()

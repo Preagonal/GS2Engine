@@ -35,6 +35,22 @@ namespace GS2Engine.GS2.Script
 
 			Init(objects, variables, functions);
 		}
+		
+		public Script(
+			TString name,
+			byte[] bytecode,
+			IDictionary<string, VariableCollection>? objects,
+			VariableCollection? variables,
+			Dictionary<string, Command>? functions
+		)
+		{
+			Name = name;
+			File = "";
+			Machine = new(this);
+			SetStream(bytecode);
+
+			Init(objects, variables, functions);
+		}
 
 		private int BytecodeLength => _bytecode.Length;
 
@@ -62,12 +78,15 @@ namespace GS2Engine.GS2.Script
 		}
 
 		public void UpdateFromByteCode(
+			TString name,
 			byte[] byteCode,
 			IDictionary<string, VariableCollection>? objects,
 			VariableCollection? variables,
 			Dictionary<string, Command>? functions
 		)
 		{
+			Name = name;
+			File = "";
 			SetStream(byteCode);
 
 			Init(objects, variables, functions);
@@ -105,9 +124,7 @@ namespace GS2Engine.GS2.Script
 		private void Reset()
 		{
 			Machine.Reset();
-			//GlobalVariables.Clear();
 			Functions.Clear();
-			GlobalObjects.Clear();
 			ExternalFunctions?.Clear();
 			_bytecode = Array.Empty<ScriptCom>();
 		}
@@ -269,6 +286,7 @@ namespace GS2Engine.GS2.Script
 										doubleString.writeChar(ch);
 									}
 
+									doubleString = doubleString.ToString().Replace("--", "");
 									op.Value = double.Parse(doubleString.ToString(), CultureInfo.InvariantCulture);
 									Tools.Debug($" - double({op.Value}) (string)\n");
 									break;

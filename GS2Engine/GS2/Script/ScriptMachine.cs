@@ -44,7 +44,7 @@ namespace GS2Engine.GS2.Script
 			IStackEntry? opCopy = null;
 			Stack<IStackEntry> opWith = new();
 
-			Tools.DebugLine($"Starting to execute function \"{functionName}\"");
+			Tools.DebugLine($"Starting to execute function \"{_script.Name}.{functionName}\"");
 			while (index < _script.Bytecode.Length)
 			{
 				int curIndex = index;
@@ -205,9 +205,7 @@ namespace GS2Engine.GS2.Script
 						IStackEntry ret = 0.ToStackEntry();
 						if (stack.Count > 0)
 							ret = stack.Pop();
-						Tools.DebugLine(
-							JsonConvert.SerializeObject(Script.GlobalVariables.GetDictionary(), Formatting.Indented)
-						);
+
 						return ret;
 					case Opcode.OP_SLEEP:
 						double sleep = getEntryValue<double>(stack.Pop());

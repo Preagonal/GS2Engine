@@ -98,7 +98,11 @@ namespace GS2Engine.Models
 			set => AddOrUpdate("editing", value.ToStackEntry());
 		}
 
-		public string extent { get; set; }
+		public string Extent
+		{
+			get => GetVariable("extent").GetValue<TString>() ?? string.Empty;
+			set => AddOrUpdate("extent", value.ToStackEntry());
+		}
 
 		public bool Flickering
 		{
@@ -112,13 +116,37 @@ namespace GS2Engine.Models
 			set => AddOrUpdate("flickertime", value.ToStackEntry());
 		}
 
-		public string hint        { get; set; }
-		public string horizsizing { get; set; }
+		public string Hint
+		{
+			get => GetVariable("hint").GetValue<TString>() ?? string.Empty;
+			set => AddOrUpdate("hint", value.ToStackEntry());
+		}
+		public string HorizSizing
+		{
+			get => GetVariable("horizsizing").GetValue<TString>() ?? string.Empty;
+			set => AddOrUpdate("horizsizing", value.ToStackEntry());
+		}
 		public int    layer       { get; }
-		public string minextent   { get; set; }
-		public string minsize     { get; set; }
-		public string position    { get; set; }
-		public object profile     { get; set; }
+		public string MinExtent   
+		{
+			get => GetVariable("minextent").GetValue<TString>() ?? string.Empty;
+			set => AddOrUpdate("minextent", value.ToStackEntry());
+		}
+		public string MinSize
+		{
+			get => GetVariable("minsize").GetValue<TString>() ?? string.Empty;
+			set => AddOrUpdate("minsize", value.ToStackEntry());
+		}
+		public string position 
+		{
+			get => GetVariable("position").GetValue<TString>() ?? string.Empty;
+			set => AddOrUpdate("position", value.ToStackEntry());
+		}
+		public IGuiControl? profile
+		{
+			get => GetVariable("profile").GetValue<IGuiControl>();
+			set => AddOrUpdate("profile", value.ToStackEntry());
+		}
 
 		public bool ResizeHeight
 		{
@@ -147,7 +175,11 @@ namespace GS2Engine.Models
 			set => AddOrUpdate("useownprofile", value.ToStackEntry());
 		}
 
-		public string vertsizing { get; set; }
+		public string vertsizing 
+		{
+			get => GetVariable("vertsizing").GetValue<TString>() ?? string.Empty;
+			set => AddOrUpdate("vertsizing", value.ToStackEntry());
+		}
 
 		public bool Visible
 		{
@@ -194,14 +226,20 @@ namespace GS2Engine.Models
 			Dispose();
 		}
 
-		public IGuiControl parent { get; set; }
+		public IGuiControl? parent
+		{
+			get => GetVariable("parent").GetValue<IGuiControl>();
+			set => AddOrUpdate("parent", value.ToStackEntry());
+		}
 
 		public void AddControl(IGuiControl? obj)
 		{
 			if (obj == null) return;
-
 			obj.parent = this;
-			Controls.Add(obj);
+			lock (Controls)
+			{
+				Controls.Add(obj);
+			}
 		}
 
 		public virtual void Draw()

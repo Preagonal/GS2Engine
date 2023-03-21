@@ -156,6 +156,8 @@ namespace GS2Engine
 
 		#endregion
 
+		// ReSharper disable once InconsistentNaming
+		// ReSharper disable once MemberCanBePrivate.Global
 		public static bool DEBUG_ON { get; set; } = false;
 
 		public static void Debug(string? text)

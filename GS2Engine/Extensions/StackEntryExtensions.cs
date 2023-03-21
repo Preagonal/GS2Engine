@@ -22,7 +22,6 @@ namespace GS2Engine.Extensions
 				double d         => d,
 				float f          => (double)f,
 				decimal o        => (double)o,
-				string[] strings => strings,
 				bool b           => b,
 				_                => stackObject,
 			};

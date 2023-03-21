@@ -44,6 +44,10 @@ namespace GS2Engine.Models
 					}
 				).ToStackEntry()
 			);
+			
+			SetCallback("extent", ExtentCallback);
+			SetCallback("clientextent", ClientExtentCallback);
+			SetCallback("position", PositionCallback);
 		}
 
 		public bool Active
@@ -242,6 +246,9 @@ namespace GS2Engine.Models
 			}
 		}
 
+		protected void CallAction() => Script?.Call($"{Id}.onAction", Array.Empty<object>()).ConfigureAwait(false).GetAwaiter().GetResult();
+
+
 		public virtual void Draw()
 		{
 			//lock (controls)
@@ -250,63 +257,66 @@ namespace GS2Engine.Models
 			}
 		}
 
-		protected void CheckClientExtent()
+		protected void ClientExtentCallback(object? posVar)
 		{
-			IStackEntry posVar = GetVariable("clientextent");
-			if (posVar.GetValue() is List<object>)
+			switch (posVar)
 			{
-				List<object>? p = posVar.GetValue<List<object>>();
-				Width = (int)(double)(p?[0] ?? "-1");
-				Height = (int)(double)(p?[1] ?? "-1");
-			}
-			else if (posVar.GetValue() is TString)
-			{
-				string? positionString = posVar.GetValue<TString>()?.ToString();
-				if (positionString?.Length <= 0 || positionString == null) return;
-				string[] p = positionString.Split(' ');
+				case List<object> var:
+					Width = (int)(double)(var[0] ?? "-1");
+					Height = (int)(double)(var[1] ?? "-1");
+					break;
+				case TString posVarString:
+				{
+					string? positionString = posVarString;
+					if (positionString?.Length <= 0 || positionString == null) return;
+					string[] p = positionString.Split(' ');
 
-				if (double.TryParse(p[0], out double p0)) Width = (int)p0;
-				if (double.TryParse(p[1], out double p1)) Height = (int)p1;
+					if (double.TryParse(p[0], out double p0)) Width = (int)p0;
+					if (double.TryParse(p[1], out double p1)) Height = (int)p1;
+					break;
+				}
 			}
 		}
 
-		protected void CheckExtent()
+		protected void ExtentCallback(object? posVar)
 		{
-			IStackEntry posVar = GetVariable("extent");
-			if (posVar.GetValue() is List<object>)
+			switch (posVar)
 			{
-				List<object>? p = posVar.GetValue<List<object>>();
-				Width = (int)(double)(p?[0] ?? "-1");
-				Height = (int)(double)(p?[1] ?? "-1");
-			}
-			else if (posVar.GetValue() is TString)
-			{
-				string? positionString = posVar.GetValue<TString>()?.ToString();
-				if (positionString?.Length <= 0 || positionString == null) return;
-				string[] p = positionString.Split(' ');
+				case List<object> var:
+					Width = (int)(double)(var[0] ?? "-1");
+					Height = (int)(double)(var[1] ?? "-1");
+					break;
+				case TString posVarString:
+				{
+					string positionString = posVarString.ToString();
+					if (positionString.Length <= 0) return;
+					string[] p = positionString.Split(' ');
 
-				if (double.TryParse(p[0], out double p0)) Width = (int)p0;
-				if (double.TryParse(p[1], out double p1)) Height = (int)p1;
+					if (double.TryParse(p[0], out double p0)) Width = (int)p0;
+					if (double.TryParse(p[1], out double p1)) Height = (int)p1;
+					break;
+				}
 			}
 		}
 
-		protected void CheckPosition()
+		protected void PositionCallback(object? posVar)
 		{
-			IStackEntry posVar = GetVariable("position");
-			if (posVar.GetValue() is List<object>)
+			switch (posVar)
 			{
-				List<object>? p = posVar.GetValue<List<object>>();
-				X = (int)(double)(p?[0] ?? "-1");
-				Y = (int)(double)(p?[1] ?? "-1");
-			}
-			else if (posVar.GetValue() is TString)
-			{
-				string? positionString = posVar.GetValue<TString>()?.ToString();
-				if (positionString?.Length <= 0 || positionString == null) return;
-				string[] p = positionString.Split(' ');
+				case List<object> var:
+					X = (int)(double)(var[0] ?? "-1");
+					Y = (int)(double)(var[1] ?? "-1");
+					break;
+				case TString posVarString:
+				{
+					string? positionString = posVarString;
+					if (positionString?.Length <= 0 || positionString == null) return;
+					string[] p = positionString.Split(' ');
 
-				if (double.TryParse(p[0], out double p0)) X = (int)p0;
-				if (double.TryParse(p[1], out double p1)) Y = (int)p1;
+					if (double.TryParse(p[0], out double p0)) X = (int)p0;
+					if (double.TryParse(p[1], out double p1)) Y = (int)p1;
+					break;
+				}
 			}
 		}
 	}

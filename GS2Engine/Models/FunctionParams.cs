@@ -1,4 +1,4 @@
-﻿namespace GS2Engine.Models
+namespace GS2Engine.Models
 {
 	public struct FunctionParams
 	{

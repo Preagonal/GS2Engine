@@ -20,20 +20,24 @@
 		<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
 	</PropertyGroup>
 
+	<PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+	  <Optimize>true</Optimize>
+	</PropertyGroup>
+
 	<ItemGroup>
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.2"/>
-		<PackageReference Include="System.Collections" Version="4.3.0"/>
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+		<PackageReference Include="System.Collections" Version="4.3.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<Compile Remove="Program.cs"/>
-		<Compile Remove="Native.cs"/>
-		<Compile Remove="TestApp\**"/>
-		<None Remove="TestApp\**"/>
+		<Compile Remove="Program.cs" />
+		<Compile Remove="Native.cs" />
+		<Compile Remove="TestApp\**" />
+		<None Remove="TestApp\**" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<EmbeddedResource Remove="TestApp\**"/>
+		<EmbeddedResource Remove="TestApp\**" />
 	</ItemGroup>
 
 	<ItemGroup>

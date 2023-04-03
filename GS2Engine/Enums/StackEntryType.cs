@@ -1,4 +1,4 @@
-﻿namespace GS2Engine.Enums
+namespace GS2Engine.Enums
 {
 	public enum StackEntryType
 	{

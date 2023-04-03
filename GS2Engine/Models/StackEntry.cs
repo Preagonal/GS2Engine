@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using GS2Engine.Enums;
 using GS2Engine.Exceptions;
 

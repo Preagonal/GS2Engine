@@ -44,5 +44,20 @@ namespace GS2Engine.UnitTests
 			//Assert
 			Assert.Equal(length, stringy.Length);
 		}
+
+		[Fact]
+		public void When_adding_tstring_Then_value_is_correct()
+		{
+			//Arrange
+			TString string1 = "ASD";
+			TString string2 = "123";
+
+			//Act
+			string1 += string2;
+			string1.writeChar(64);
+
+			//Assert
+			Assert.Equal("asd123@", string1.ToLower().ToString());
+		}
 	}
 }

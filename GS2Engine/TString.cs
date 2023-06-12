@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -67,7 +67,7 @@ namespace GS2Engine
 
 		public static TString operator +(TString a, TString b)
 		{
-			a.AddBuffer(b.buffer, b.length());
+			a.AddBuffer(b.buffer, 0, b.length());
 			return a;
 		}
 
@@ -144,6 +144,13 @@ namespace GS2Engine
 			byte[] val = { };
 			read(ref val, 2);
 			return (short)((val[0] << 8) + val[1]);
+		}
+
+		public short readGShort()
+		{
+			byte[] val = { };
+			read(ref val, 2);
+			return (short)(((val[0]-32) << 8) + (val[1]-32));
 		}
 
 		public void writeChar(byte pData, bool nullTerminate = false) => AddBuffer(pData);

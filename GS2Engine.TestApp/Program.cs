@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using GS2Engine;
 using GS2Engine.Extensions;
 using GS2Engine.GS2.Script;

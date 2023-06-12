@@ -1,4 +1,4 @@
-﻿using GS2Engine.GS2.ByteCode;
+using GS2Engine.GS2.ByteCode;
 
 namespace GS2Engine.GS2.Script
 {

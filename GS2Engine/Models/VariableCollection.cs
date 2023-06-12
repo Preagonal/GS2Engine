@@ -5,7 +5,10 @@ namespace GS2Engine.Models
 {
 	public class VariableCollection
 	{
+		public delegate void VariableCollectionCallback(object? value);
+
 		private readonly Dictionary<string, IStackEntry> _collection = new();
+		private readonly Dictionary<string, VariableCollectionCallback> _callbacks = new();
 
 		public VariableCollection()
 		{
@@ -33,9 +36,20 @@ namespace GS2Engine.Models
 			else
 				_collection.Add(variable, value);
 
+			if (_callbacks.ContainsKey(variable))
+				_callbacks[variable](value.GetValue());
+
 			return _collection[variable];
 		}
 
+		protected void SetCallback(TString variable, VariableCollectionCallback callback)
+		{
+			if (_callbacks.ContainsKey(variable))
+				_callbacks[variable] = callback;
+			else
+				_callbacks.Add(variable, callback);
+		}
+		
 		public IStackEntry SetVariable(TString variable, IStackEntry value) => AddOrUpdate(variable, value);
 
 		public bool ContainsVariable(TString variable) => _collection.ContainsKey(variable.ToString());

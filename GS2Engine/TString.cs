@@ -96,7 +96,7 @@ namespace GS2Engine
 			return length;
 		}
 
-		private static void memcpy(ref byte[] pDest, byte[] src, int start, int pSize)
+		private static void memcpy(ref byte[] pDest, IReadOnlyList<byte> src, int start, int pSize)
 		{
 			int j = 0;
 			Array.Resize(ref pDest, pSize);

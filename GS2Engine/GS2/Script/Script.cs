@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -127,17 +127,18 @@ namespace GS2Engine.GS2.Script
 			Functions.Clear();
 			ExternalFunctions?.Clear();
 			_bytecode = Array.Empty<ScriptCom>();
+			_strings.Clear();
 		}
 
 
 		private void SetStream(TString bytecodeParam)
 		{
 			int oIndex = 0;
+			bytecodeParam.setRead(0);
 
 			CheckHeader(bytecodeParam);
 
 			Reset();
-			bytecodeParam.setRead(0);
 
 			while (bytecodeParam.bytesLeft() > 0)
 			{
@@ -320,11 +321,24 @@ namespace GS2Engine.GS2.Script
 		private static void CheckHeader(TString bytecodeParam)
 		{
 			byte isPacket = bytecodeParam.readChar();
-			if (isPacket != 0xAC) return;
+			if (isPacket != 0xAC)
+			{
+				bytecodeParam.setRead(0);
+				BytecodeSegment segmentType = (BytecodeSegment)bytecodeParam.readInt();
+
+				if (segmentType is < BytecodeSegment.Gs1EventFlags or > BytecodeSegment.Bytecode)
+				{
+					bytecodeParam.setRead(0);
+				}
+				else
+				{
+					return;
+				}
+			}
 
 			Tools.DebugLine("GServer packet header included");
-			ushort infoSectionLength = (ushort)bytecodeParam.readShort();
-			Tools.DebugLine("Length of information section: $infoSectionLength");
+			ushort infoSectionLength = (ushort)bytecodeParam.readGShort();
+			Tools.DebugLine($"Length of information section: {infoSectionLength}");
 
 			TString infoSection = bytecodeParam.readChars(infoSectionLength);
 

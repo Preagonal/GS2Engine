@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -18,12 +18,25 @@ namespace GS2Engine.GS2.Script
 		private readonly Script             _script;
 		private readonly VariableCollection _tempVariables = new();
 
+		private delegate IStackEntry OpcodeHandler(ScriptCom op, ref int index);
+
+		private readonly Dictionary<Opcode, OpcodeHandler> _opcodeHandlers = new();
+
 		private bool _firstRun = true;
 		private int  _indexPos;
 		private int  _scriptStackSize;
 		private bool _useTemp;
 
-		public ScriptMachine(Script script) => _script = script;
+		public ScriptMachine(Script script)
+		{
+			_script = script;
+			registerOpcodeHandlers();
+		}
+
+		private void registerOpcodeHandlers()
+		{
+
+		}
 
 		private Dictionary<string, Script.Command> Functions => _script.ExternalFunctions;
 

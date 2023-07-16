@@ -146,6 +146,13 @@ namespace GS2Engine
 			return (short)((val[0] << 8) + val[1]);
 		}
 
+		public short readGShort()
+		{
+			byte[] val = { };
+			read(ref val, 2);
+			return (short)(((val[0]-32) << 8) + (val[1]-32));
+		}
+
 		public void writeChar(byte pData, bool nullTerminate = false) => AddBuffer(pData);
 
 		public bool starts(string startsWith) => Encoding.ASCII.GetString(buffer).StartsWith(startsWith);

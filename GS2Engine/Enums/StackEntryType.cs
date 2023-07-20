@@ -10,5 +10,6 @@ namespace GS2Engine.Enums
 		ArrayStart,
 		Player,
 		Function,
+		Script,
 	}
 }

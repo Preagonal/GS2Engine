@@ -101,8 +101,8 @@ namespace GS2Engine.GS2.Script
 			if (objects != null)
 				GlobalObjects = objects;
 
-			if (variables != null)
-				GlobalVariables = variables;
+			//if (variables != null)
+			//	GlobalVariables = variables;
 
 			if (functions != null)
 				foreach (KeyValuePair<string, Command> obj in functions)
@@ -117,8 +117,6 @@ namespace GS2Engine.GS2.Script
 					return 0.ToStackEntry();
 				}
 			);
-
-			Execute("onCreated").ConfigureAwait(false).GetAwaiter().GetResult();
 		}
 
 		private void Reset()
@@ -320,6 +318,7 @@ namespace GS2Engine.GS2.Script
 
 		private static void CheckHeader(TString bytecodeParam)
 		{
+			if (bytecodeParam.bytesLeft() < 1) return;
 			byte isPacket = bytecodeParam.readChar();
 			if (isPacket != 0xAC)
 			{

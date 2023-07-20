@@ -57,6 +57,9 @@ namespace GS2Engine.Extensions
 					if (stackType == typeof(Script.Command))
 						return StackEntryType.Function;
 
+					if (stackType == typeof(Script))
+						return StackEntryType.Script;
+
 					if (stackType != null && stackType.GetInterfaces()
 					                                  .Any(x => x.Name.Equals("IGuiControl", StringComparison.CurrentCultureIgnoreCase)))
 						return StackEntryType.Array;

@@ -208,6 +208,11 @@ namespace GS2Engine.GS2.Script
 									(cmd as Script.Command)?.Invoke(this, parameters.ToArray()) ?? 0.ToStackEntry()
 								);
 								break;
+							case StackEntryType.Script:
+								stack.Push(
+									(cmd as Script.Command)?.Invoke(this, parameters.ToArray()) ?? 0.ToStackEntry()
+								);
+								break;
 							default:
 								stack.Push(0.ToStackEntry());
 								break;
@@ -743,10 +748,9 @@ namespace GS2Engine.GS2.Script
 						stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty
 					):
 					return Script.GlobalVariables[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty];
-				case Variable when _script != null &&
-				                   _script.GlobalObjects.ContainsKey(
-					                   stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty
-				                   ):
+				case Variable when _script.GlobalObjects.ContainsKey(
+					stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty
+				):
 					return _script.GlobalObjects[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty]
 					              .ToStackEntry();
 				default:

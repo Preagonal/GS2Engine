@@ -690,8 +690,8 @@ namespace GS2Engine.GS2.Script
 					case Opcode.OP_PLAYER:
 						//_script.Objects[p]
 						stack.Push(
-							_script.GlobalObjects.ContainsKey("player")
-								? new(Player, _script.GlobalObjects["player"])
+							Script.GlobalObjects.TryGetValue("player", out VariableCollection? o)
+								? new(Player, o)
 								: 0.ToStackEntry()
 						);
 						break;
@@ -744,15 +744,18 @@ namespace GS2Engine.GS2.Script
 					_useTemp = false;
 					return _tempVariables.GetVariable(stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty);
 				case Variable
+					when _script.RefObject != null && _script.RefObject.ContainsVariable(stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty):
+					return _script.RefObject[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty];
+				case Variable
 					when Script.GlobalVariables.ContainsVariable(
 						stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty
 					):
 					return Script.GlobalVariables[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty];
-				case Variable when _script.GlobalObjects.ContainsKey(
+				case Variable when Script.GlobalObjects.ContainsKey(
 					stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty
 				):
-					return _script.GlobalObjects[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty]
-					              .ToStackEntry();
+					return Script.GlobalObjects[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty]
+					             .ToStackEntry();
 				default:
 					return stackEntry;
 			}

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -15,41 +16,45 @@ namespace GS2Engine.GS2.Script
 	{
 		public delegate IStackEntry Command(ScriptMachine machine, IStackEntry[]? args);
 
-		public static VariableCollection GlobalVariables = new();
+		public static readonly VariableCollection                                GlobalVariables  = new();
+		public static readonly ConcurrentDictionary<string, VariableCollection?> GlobalObjects    = new();
+		public static readonly ConcurrentDictionary<string, Command>             GlobalFunctions = new();
+
 		private readonly List<TString> _strings = new();
 		public readonly Dictionary<string, FunctionParams> Functions = new();
 		private ScriptCom[] _bytecode = Array.Empty<ScriptCom>();
-		public IDictionary<string, VariableCollection> GlobalObjects = new Dictionary<string, VariableCollection>();
+		
+		public readonly VariableCollection? RefObject = null;
+
 
 		public Script(
 			TString bytecodeFile,
-			IDictionary<string, VariableCollection>? objects,
-			VariableCollection? variables,
-			Dictionary<string, Command>? functions
+			VariableCollection? refObject = null
 		)
 		{
 			Name = Path.GetFileNameWithoutExtension(bytecodeFile);
 			File = bytecodeFile;
+			RefObject = refObject;
 			Machine = new(this);
 			SetStream(ReadAllBytes(bytecodeFile));
 
-			Init(objects, variables, functions);
+			Init();
 		}
 		
 		public Script(
 			TString name,
 			byte[] bytecode,
-			IDictionary<string, VariableCollection>? objects,
-			VariableCollection? variables,
-			Dictionary<string, Command>? functions
+			VariableCollection? refObject = null 
 		)
 		{
 			Name = name;
 			File = "";
+			RefObject = refObject;
 			Machine = new(this);
+			
 			SetStream(bytecode);
 
-			Init(objects, variables, functions);
+			Init();
 		}
 
 		private int BytecodeLength => _bytecode.Length;
@@ -63,50 +68,28 @@ namespace GS2Engine.GS2.Script
 		public ScriptCom[]                 Bytecode          => _bytecode;
 		public Dictionary<string, Command> ExternalFunctions { get; } = new();
 
-		public void UpdateFromFile(
-			string scriptFile,
-			IDictionary<string, VariableCollection>? objects,
-			VariableCollection? variables,
-			Dictionary<string, Command>? functions
-		)
+		public void UpdateFromFile(string scriptFile)
 		{
 			Name = Path.GetFileNameWithoutExtension(scriptFile);
 			File = scriptFile;
 			SetStream(ReadAllBytes(scriptFile));
 
-			Init(objects, variables, functions);
+			Init();
 		}
 
-		public void UpdateFromByteCode(
-			TString name,
-			byte[] byteCode,
-			IDictionary<string, VariableCollection>? objects,
-			VariableCollection? variables,
-			Dictionary<string, Command>? functions
-		)
+		public void UpdateFromByteCode(TString name, byte[] byteCode)
 		{
 			Name = name;
 			File = "";
 			SetStream(byteCode);
 
-			Init(objects, variables, functions);
+			Init();
 		}
 
-		private void Init(
-			IDictionary<string, VariableCollection>? objects,
-			VariableCollection? variables,
-			Dictionary<string, Command>? functions
-		)
+		private void Init()
 		{
-			if (objects != null)
-				GlobalObjects = objects;
-
-			//if (variables != null)
-			//	GlobalVariables = variables;
-
-			if (functions != null)
-				foreach (KeyValuePair<string, Command> obj in functions)
-					ExternalFunctions?.Add(obj.Key, obj.Value);
+			foreach (KeyValuePair<string, Command> obj in GlobalFunctions)
+				ExternalFunctions?.Add(obj.Key, obj.Value);
 
 			ExternalFunctions?.Add(
 				"settimer",
@@ -475,7 +458,7 @@ namespace GS2Engine.GS2.Script
 			if (GlobalObjects.ContainsKey(objectType))
 				GlobalObjects[objectType] = obj;
 			else
-				GlobalObjects.Add(objectType, obj);
+				GlobalObjects.AddOrUpdate(objectType, obj, (s, collection) => GlobalObjects[s] = collection);
 		}
 	}
 }

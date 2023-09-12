@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using GS2Engine.Extensions;
 
 namespace GS2Engine.Models
@@ -23,7 +23,7 @@ namespace GS2Engine.Models
 		}
 
 		public IStackEntry GetVariable(TString variable) =>
-			_collection.TryGetValue(variable, out IStackEntry? entry)
+			_collection.TryGetValue(variable, out var entry)
 				? entry
 				: SetVariable(variable, "".ToStackEntry());
 
@@ -49,7 +49,7 @@ namespace GS2Engine.Models
 			else
 				_callbacks.Add(variable, callback);
 		}
-		
+
 		public IStackEntry SetVariable(TString variable, IStackEntry value) => AddOrUpdate(variable, value);
 
 		public bool ContainsVariable(TString variable) => _collection.ContainsKey(variable.ToString());
@@ -57,7 +57,7 @@ namespace GS2Engine.Models
 		public void AddOrUpdate(IDictionary<string, IStackEntry>? collection)
 		{
 			if (collection != null)
-				foreach (KeyValuePair<string, IStackEntry> variable in collection)
+				foreach (var variable in collection)
 					AddOrUpdate(variable.Key, variable.Value);
 		}
 

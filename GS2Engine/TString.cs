@@ -33,7 +33,7 @@ namespace GS2Engine
 		private void AddBuffer(string input, int length = 0)
 		{
 			Array.Resize(ref buffer, Length + length);
-			foreach (byte c in Encoding.ASCII.GetBytes(input))
+			foreach (var c in Encoding.ASCII.GetBytes(input))
 			{
 				buffer[writePos] = c;
 				writePos++;
@@ -44,7 +44,7 @@ namespace GS2Engine
 		private void AddBuffer(IReadOnlyList<byte> input, int start, int length = 0)
 		{
 			Array.Resize(ref buffer, Length + length);
-			for (int i = start; i < start + length; i++)
+			for (var i = start; i < start + length; i++)
 			{
 				buffer[writePos] = input[i];
 				writePos++;
@@ -77,14 +77,14 @@ namespace GS2Engine
 
 		public int readInt()
 		{
-			byte[] val = Array.Empty<byte>();
+			var val = Array.Empty<byte>();
 			read(ref val, 4);
 			return (val[0] << 24) + (val[1] << 16) + (val[2] << 8) + val[3];
 		}
 
 		private int read(ref byte[] pDest, int pSize)
 		{
-			int length = this.length() - readc < pSize ? this.length() - readc : pSize;
+			var length = this.length() - readc < pSize ? this.length() - readc : pSize;
 			if (length <= 0)
 			{
 				memset(ref pDest, 0, pSize);
@@ -98,10 +98,10 @@ namespace GS2Engine
 
 		private static void memcpy(ref byte[] pDest, IReadOnlyList<byte> src, int start, int pSize)
 		{
-			int j = 0;
+			var j = 0;
 			Array.Resize(ref pDest, pSize);
-			int end = start + pSize;
-			for (int i = start; i < end; i++)
+			var end = start + pSize;
+			for (var i = start; i < end; i++)
 			{
 				pDest[j] = src[i];
 				j++;
@@ -111,7 +111,7 @@ namespace GS2Engine
 		private static void memset(ref byte[] pDest, byte data, int pSize)
 		{
 			Array.Resize(ref pDest, pSize);
-			for (int i = 0; i < pSize; i++)
+			for (var i = 0; i < pSize; i++)
 				pDest[i] = data;
 		}
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -180,23 +180,23 @@ namespace GS2Engine
 			Regex r = new(@"\%(\d*\$)?([\'\#\-\+ ]*)(\d*)(?:\.(\d+))?([hl])?([dioxXucsfeEgGpn%])");
 			//"%[parameter][flags][width][.precision][length]type"
 			Match? m = null;
-			string? w = string.Empty;
-			int defaultParamIx = 0;
+			var w = string.Empty;
+			var defaultParamIx = 0;
 			int paramIx;
 			object? o = null;
 
-			bool flagLeft2Right = false;
-			bool flagAlternate = false;
-			bool flagPositiveSign = false;
-			bool flagPositiveSpace = false;
-			bool flagZeroPadding = false;
-			bool flagGroupThousands = false;
+			var flagLeft2Right = false;
+			var flagAlternate = false;
+			var flagPositiveSign = false;
+			var flagPositiveSpace = false;
+			var flagZeroPadding = false;
+			var flagGroupThousands = false;
 
-			int fieldLength = 0;
-			int fieldPrecision = 0;
-			char shortLongIndicator = '\0';
-			char formatSpecifier = '\0';
-			char paddingCharacter = ' ';
+			var fieldLength = 0;
+			var fieldPrecision = 0;
+			var shortLongIndicator = '\0';
+			var formatSpecifier = '\0';
+			var paddingCharacter = ' ';
 
 			#endregion
 
@@ -210,7 +210,7 @@ namespace GS2Engine
 				paramIx = defaultParamIx;
 				if (m.Groups[1] != null && m.Groups[1].Value.Length > 0)
 				{
-					string val = m.Groups[1].Value.Substring(0, m.Groups[1].Value.Length - 1);
+					var val = m.Groups[1].Value.Substring(0, m.Groups[1].Value.Length - 1);
 					paramIx = Convert.ToInt32(val) - 1;
 				}
 
@@ -229,7 +229,7 @@ namespace GS2Engine
 				flagGroupThousands = false;
 				if (m.Groups[2] != null && m.Groups[2].Value.Length > 0)
 				{
-					string flags = m.Groups[2].Value;
+					var flags = m.Groups[2].Value;
 
 					flagAlternate = flags.IndexOf('#') >= 0;
 					flagLeft2Right = flags.IndexOf('-') >= 0;
@@ -247,7 +247,7 @@ namespace GS2Engine
 
 				#region field length
 
-				// extract field length and 
+				// extract field length and
 				// pading character
 				paddingCharacter = ' ';
 				fieldLength = int.MinValue;
@@ -466,11 +466,11 @@ namespace GS2Engine
 					#region s - string
 
 					case 's': // string
-						string t = "{0" +
-						           (fieldLength != int.MinValue
-							           ? "," + (flagLeft2Right ? "-" : string.Empty) + fieldLength
-							           : string.Empty) +
-						           ":s}";
+						var t = "{0" +
+						        (fieldLength != int.MinValue
+							        ? "," + (flagLeft2Right ? "-" : string.Empty) + fieldLength
+							        : string.Empty) +
+						        ":s}";
 						w = o?.ToString();
 						if (fieldPrecision >= 0)
 							w = w?.Substring(0, fieldPrecision);
@@ -643,12 +643,12 @@ namespace GS2Engine
 			object? value
 		)
 		{
-			string? w = string.Empty;
-			string lengthFormat = "{0" +
-			                      (fieldLength != int.MinValue
-				                      ? "," + (left2Right ? "-" : string.Empty) + fieldLength
-				                      : string.Empty) +
-			                      "}";
+			var w = string.Empty;
+			var lengthFormat = "{0" +
+			                   (fieldLength != int.MinValue
+				                   ? "," + (left2Right ? "-" : string.Empty) + fieldLength
+				                   : string.Empty) +
+			                   "}";
 
 			// ReSharper disable once InvertIf
 			if (IsNumericType(value))
@@ -687,16 +687,16 @@ namespace GS2Engine
 			object? value
 		)
 		{
-			string? w = string.Empty;
-			string lengthFormat = "{0" +
-			                      (fieldLength != int.MinValue
-				                      ? "," + (left2Right ? "-" : string.Empty) + fieldLength
-				                      : string.Empty) +
-			                      "}";
-			string numberFormat = "{0:" +
-			                      nativeFormat +
-			                      (fieldPrecision != int.MinValue ? fieldPrecision.ToString() : string.Empty) +
-			                      "}";
+			var w = string.Empty;
+			var lengthFormat = "{0" +
+			                   (fieldLength != int.MinValue
+				                   ? "," + (left2Right ? "-" : string.Empty) + fieldLength
+				                   : string.Empty) +
+			                   "}";
+			var numberFormat = "{0:" +
+			                   nativeFormat +
+			                   (fieldPrecision != int.MinValue ? fieldPrecision.ToString() : string.Empty) +
+			                   "}";
 
 			if (IsNumericType(value))
 			{
@@ -736,16 +736,16 @@ namespace GS2Engine
 			object? value
 		)
 		{
-			string? w = string.Empty;
-			string lengthFormat = "{0" +
-			                      (fieldLength != int.MinValue
-				                      ? "," + (left2Right ? "-" : string.Empty) + fieldLength
-				                      : string.Empty) +
-			                      "}";
-			string numberFormat = "{0:" +
-			                      nativeFormat +
-			                      (fieldPrecision != int.MinValue ? fieldPrecision.ToString() : "0") +
-			                      "}";
+			var w = string.Empty;
+			var lengthFormat = "{0" +
+			                   (fieldLength != int.MinValue
+				                   ? "," + (left2Right ? "-" : string.Empty) + fieldLength
+				                   : string.Empty) +
+			                   "}";
+			var numberFormat = "{0:" +
+			                   nativeFormat +
+			                   (fieldPrecision != int.MinValue ? fieldPrecision.ToString() : "0") +
+			                   "}";
 
 
 			if (IsNumericType(value))
@@ -755,7 +755,7 @@ namespace GS2Engine
 				// fix by st14
 				if (numberFormat.Contains("d") && value is double)
 				{
-					double num = (double)value;
+					var num = (double)value;
 					w = string.Format(numberFormat, (int)num);
 				}
 				else

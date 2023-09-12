@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using GS2Engine.Enums;
@@ -36,7 +36,7 @@ namespace GS2Engine.Models
 					{
 						if (a?.Length > 0)
 						{
-							if (m.GetEntry(a[0], StackEntryType.Variable).TryGetValue<IGuiControl>(out object? control))
+							if (m.GetEntry(a[0], StackEntryType.Variable).TryGetValue<IGuiControl>(out var control))
 								AddControl((IGuiControl)control!);
 						}
 
@@ -44,7 +44,7 @@ namespace GS2Engine.Models
 					}
 				).ToStackEntry()
 			);
-			
+
 			SetCallback("extent", ExtentCallback);
 			SetCallback("clientextent", ClientExtentCallback);
 			SetCallback("position", PositionCallback);
@@ -131,7 +131,7 @@ namespace GS2Engine.Models
 			set => AddOrUpdate("horizsizing", value.ToStackEntry());
 		}
 		public int    layer       { get; }
-		public string MinExtent   
+		public string MinExtent
 		{
 			get => GetVariable("minextent").GetValue<TString>() ?? string.Empty;
 			set => AddOrUpdate("minextent", value.ToStackEntry());
@@ -141,7 +141,7 @@ namespace GS2Engine.Models
 			get => GetVariable("minsize").GetValue<TString>() ?? string.Empty;
 			set => AddOrUpdate("minsize", value.ToStackEntry());
 		}
-		public string position 
+		public string position
 		{
 			get => GetVariable("position").GetValue<TString>() ?? string.Empty;
 			set => AddOrUpdate("position", value.ToStackEntry());
@@ -179,7 +179,7 @@ namespace GS2Engine.Models
 			set => AddOrUpdate("useownprofile", value.ToStackEntry());
 		}
 
-		public string vertsizing 
+		public string vertsizing
 		{
 			get => GetVariable("vertsizing").GetValue<TString>() ?? string.Empty;
 			set => AddOrUpdate("vertsizing", value.ToStackEntry());
@@ -224,7 +224,7 @@ namespace GS2Engine.Models
 		{
 			//lock (controls)
 			{
-				foreach (IGuiControl? control in Controls) control?.Destroy();
+				foreach (var control in Controls) control?.Destroy();
 				Controls.Clear();
 			}
 			Dispose();
@@ -253,7 +253,7 @@ namespace GS2Engine.Models
 		{
 			//lock (controls)
 			{
-				foreach (IGuiControl? control in Controls) control?.Draw();
+				foreach (var control in Controls) control?.Draw();
 			}
 		}
 
@@ -271,8 +271,8 @@ namespace GS2Engine.Models
 					if (positionString?.Length <= 0 || positionString == null) return;
 					string[] p = positionString.Split(' ');
 
-					if (double.TryParse(p[0], out double p0)) Width = (int)p0;
-					if (double.TryParse(p[1], out double p1)) Height = (int)p1;
+					if (double.TryParse(p[0], out var p0)) Width = (int)p0;
+					if (double.TryParse(p[1], out var p1)) Height = (int)p1;
 					break;
 				}
 			}
@@ -288,12 +288,12 @@ namespace GS2Engine.Models
 					break;
 				case TString posVarString:
 				{
-					string positionString = posVarString.ToString();
+					var positionString = posVarString.ToString();
 					if (positionString.Length <= 0) return;
 					string[] p = positionString.Split(' ');
 
-					if (double.TryParse(p[0], out double p0)) Width = (int)p0;
-					if (double.TryParse(p[1], out double p1)) Height = (int)p1;
+					if (double.TryParse(p[0], out var p0)) Width = (int)p0;
+					if (double.TryParse(p[1], out var p1)) Height = (int)p1;
 					break;
 				}
 			}
@@ -313,8 +313,8 @@ namespace GS2Engine.Models
 					if (positionString?.Length <= 0 || positionString == null) return;
 					string[] p = positionString.Split(' ');
 
-					if (double.TryParse(p[0], out double p0)) X = (int)p0;
-					if (double.TryParse(p[1], out double p1)) Y = (int)p1;
+					if (double.TryParse(p[0], out var p0)) X = (int)p0;
+					if (double.TryParse(p[1], out var p1)) Y = (int)p1;
 					break;
 				}
 			}

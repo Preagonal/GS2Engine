@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using GS2Engine.Extensions;
 using GS2Engine.GS2.ByteCode;
@@ -23,9 +24,9 @@ namespace GS2Engine.GS2.Script
 		private readonly List<TString> _strings = new();
 		public readonly Dictionary<string, FunctionParams> Functions = new();
 		private ScriptCom[] _bytecode = Array.Empty<ScriptCom>();
-		
-		public readonly VariableCollection? RefObject = null;
 
+		public readonly VariableCollection? RefObject = null;
+		private         Thread?             _timerThread;
 
 		public Script(
 			TString bytecodeFile,
@@ -40,18 +41,18 @@ namespace GS2Engine.GS2.Script
 
 			Init();
 		}
-		
+
 		public Script(
 			TString name,
 			byte[] bytecode,
-			VariableCollection? refObject = null 
+			VariableCollection? refObject = null
 		)
 		{
 			Name = name;
 			File = "";
 			RefObject = refObject;
 			Machine = new(this);
-			
+
 			SetStream(bytecode);
 
 			Init();
@@ -88,7 +89,7 @@ namespace GS2Engine.GS2.Script
 
 		private void Init()
 		{
-			foreach (KeyValuePair<string, Command> obj in GlobalFunctions)
+			foreach (var obj in GlobalFunctions)
 				ExternalFunctions?.Add(obj.Key, obj.Value);
 
 			ExternalFunctions?.Add(
@@ -114,7 +115,7 @@ namespace GS2Engine.GS2.Script
 
 		private void SetStream(TString bytecodeParam)
 		{
-			int oIndex = 0;
+			var oIndex = 0;
 			bytecodeParam.setRead(0);
 
 			CheckHeader(bytecodeParam);
@@ -129,7 +130,7 @@ namespace GS2Engine.GS2.Script
 					if (bytecodeParam.readChar() == '\n')
 						break;
 
-				BytecodeSegment segmentType = (BytecodeSegment)bytecodeParam.readInt();
+				var segmentType = (BytecodeSegment)bytecodeParam.readInt();
 
 				if (segmentType is < BytecodeSegment.Gs1EventFlags or > BytecodeSegment.Bytecode)
 				{
@@ -139,15 +140,15 @@ namespace GS2Engine.GS2.Script
 
 				Tools.Debug($"Segment: {segmentType.BytecodeSegmentToString()}\n");
 
-				int segmentLength = bytecodeParam.readInt();
+				var segmentLength = bytecodeParam.readInt();
 
-				TString segmentSection = bytecodeParam.readChars(segmentLength);
+				var segmentSection = bytecodeParam.readChars(segmentLength);
 
 				switch (segmentType)
 				{
 					case BytecodeSegment.Gs1EventFlags:
 					{
-						int flags = 0;
+						var flags = 0;
 						if (3 < segmentSection.length())
 							flags = segmentSection.readInt();
 						Gs1Flags = flags;
@@ -160,16 +161,16 @@ namespace GS2Engine.GS2.Script
 							while (segmentSection.bytesLeft() > 0)
 							{
 								TString functionName = new();
-								int pos = segmentSection.readInt();
+								var pos = segmentSection.readInt();
 
 								while (true)
 								{
-									byte ch = segmentSection.readChar();
+									var ch = segmentSection.readChar();
 									if (ch == '\0') break;
 									functionName.writeChar(ch);
 								}
 
-								bool isPublic = functionName.starts("public.");
+								var isPublic = functionName.starts("public.");
 								if (isPublic) functionName.removeStart(7);
 								addFunction(functionName, pos, isPublic);
 
@@ -187,7 +188,7 @@ namespace GS2Engine.GS2.Script
 								TString stringName = new();
 								while (true)
 								{
-									byte ch = segmentSection.readChar();
+									var ch = segmentSection.readChar();
 									if (ch == '\0') break;
 									stringName.writeChar(ch);
 								}
@@ -204,7 +205,7 @@ namespace GS2Engine.GS2.Script
 						ScriptCom op = new();
 						while (segmentSection.bytesLeft() > 0)
 						{
-							byte bytecodeByte = segmentSection.readChar();
+							var bytecodeByte = segmentSection.readChar();
 							if (bytecodeByte is >= 0xF0 and <= 0xF6)
 								Tools.Debug($" (Opcode: 0x{bytecodeByte}) ");
 
@@ -212,7 +213,7 @@ namespace GS2Engine.GS2.Script
 							{
 								case 0xF0:
 								{
-									byte varIndex = segmentSection.readChar();
+									var varIndex = segmentSection.readChar();
 
 									op.VariableName = _strings[varIndex];
 
@@ -221,7 +222,7 @@ namespace GS2Engine.GS2.Script
 								}
 								case 0xF1:
 								{
-									short varIndex = segmentSection.readShort();
+									var varIndex = segmentSection.readShort();
 
 									op.VariableName = _strings[varIndex];
 
@@ -230,7 +231,7 @@ namespace GS2Engine.GS2.Script
 								}
 								case 0xF2:
 								{
-									int varIndex = segmentSection.readInt();
+									var varIndex = segmentSection.readInt();
 
 									op.VariableName = _strings[varIndex];
 
@@ -239,21 +240,21 @@ namespace GS2Engine.GS2.Script
 								}
 								case 0xF3:
 								{
-									sbyte varIndex = (sbyte)segmentSection.readChar();
+									var varIndex = (sbyte)segmentSection.readChar();
 									op.Value = varIndex;
 									Tools.Debug($" - double({op.Value}) (byte)\n");
 									break;
 								}
 								case 0xF4:
 								{
-									short varIndex = segmentSection.readShort();
+									var varIndex = segmentSection.readShort();
 									op.Value = varIndex;
 									Tools.Debug($" - double({op.Value}) (word)\n");
 									break;
 								}
 								case 0xF5:
 								{
-									int varIndex = segmentSection.readInt();
+									var varIndex = segmentSection.readInt();
 									op.Value = varIndex;
 									Tools.Debug($" - double({op.Value}) (dword)\n");
 									break;
@@ -263,7 +264,7 @@ namespace GS2Engine.GS2.Script
 									TString doubleString = new();
 									while (true)
 									{
-										byte ch = segmentSection.readChar();
+										var ch = segmentSection.readChar();
 										if (ch == '\0') break;
 										doubleString.writeChar(ch);
 									}
@@ -302,11 +303,11 @@ namespace GS2Engine.GS2.Script
 		private static void CheckHeader(TString bytecodeParam)
 		{
 			if (bytecodeParam.bytesLeft() < 1) return;
-			byte isPacket = bytecodeParam.readChar();
+			var isPacket = bytecodeParam.readChar();
 			if (isPacket != 0xAC)
 			{
 				bytecodeParam.setRead(0);
-				BytecodeSegment segmentType = (BytecodeSegment)bytecodeParam.readInt();
+				var segmentType = (BytecodeSegment)bytecodeParam.readInt();
 
 				if (segmentType is < BytecodeSegment.Gs1EventFlags or > BytecodeSegment.Bytecode)
 				{
@@ -319,21 +320,21 @@ namespace GS2Engine.GS2.Script
 			}
 
 			Tools.DebugLine("GServer packet header included");
-			ushort infoSectionLength = (ushort)bytecodeParam.readGShort();
+			var infoSectionLength = (ushort)bytecodeParam.readGShort();
 			Tools.DebugLine($"Length of information section: {infoSectionLength}");
 
-			TString infoSection = bytecodeParam.readChars(infoSectionLength);
+			var infoSection = bytecodeParam.readChars(infoSectionLength);
 
 			string[] data = infoSection.ToString().Split(',');
 
-			string target = data[0];
-			string name = data[1];
+			var target = data[0];
+			var name = data[1];
 
 			Tools.DebugLine($"Code target: {target}");
 			Tools.DebugLine($"Target name: {name}");
 
-			int.TryParse(data[2], out int saveScriptToFileInt);
-			string saveScriptToFile = saveScriptToFileInt == 1 ? "Yes" : "No";
+			int.TryParse(data[2], out var saveScriptToFileInt);
+			var saveScriptToFile = saveScriptToFileInt == 1 ? "Yes" : "No";
 
 			Tools.DebugLine($"Save script to file: {saveScriptToFile}");
 
@@ -358,10 +359,10 @@ namespace GS2Engine.GS2.Script
 		{
 			//fixBadByteCode();
 			//checkOnlyFunctions();
-			//optimizeByteCode();
+			OptimizeByteCode();
 		}
 
-		private static void optimizeByteCode()
+		private static void OptimizeByteCode()
 		{
 		}
 
@@ -387,7 +388,7 @@ namespace GS2Engine.GS2.Script
 			{
 				Stack<IStackEntry> callStack = new();
 				if (args != null)
-					foreach (object variable in args.Reverse())
+					foreach (var variable in args.Reverse())
 						switch (variable)
 						{
 							case string s:
@@ -439,16 +440,30 @@ namespace GS2Engine.GS2.Script
 			return 0.ToStackEntry();
 		}
 
-		private void SetTimer(double value) => Timer = DateTime.UtcNow.AddSeconds(value);
+		private void SetTimer(double value)
+		{
+			Timer        = DateTime.UtcNow.AddSeconds(value);
+			_timerThread = new Thread(() => DelayedMethodCall(value, OnTimeout));
+			_timerThread?.Start();
+		}
 
+		private static void DelayedMethodCall(double seconds, Action methodToCall)
+		{
+			Thread.Sleep((int)(seconds * 1000));  // Convert seconds to milliseconds
+			methodToCall();
+		}
+
+		private void OnTimeout()
+		{
+			Timer = null;
+			Execute("onTimeout").ConfigureAwait(false).GetAwaiter().GetResult();
+		}
 
 		public async Task<IStackEntry> RunEvents()
 		{
-			if (Timer <= DateTime.UtcNow)
-			{
-				Timer = null;
-				return await Execute("onTimeout").ConfigureAwait(false);
-			}
+			if (!(Timer <= DateTime.UtcNow)) return 0.ToStackEntry();
+
+			Timer = null;
 
 			return 0.ToStackEntry();
 		}

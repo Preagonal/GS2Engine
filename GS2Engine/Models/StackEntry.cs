@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using GS2Engine.Enums;
 using GS2Engine.Exceptions;
 
@@ -18,7 +18,7 @@ namespace GS2Engine.Models
 
 		public T1? GetValue<T1>()
 		{
-			if (TryGetValue<T1>(out object? value))
+			if (TryGetValue<T1>(out var value))
 			{
 				return (T1?)value;
 			}
@@ -38,7 +38,7 @@ namespace GS2Engine.Models
 				{
 					if (Value?.GetType() == typeof(TString))
 					{
-						if (bool.TryParse(Value.ToString(), out bool boolVar))
+						if (bool.TryParse(Value.ToString(), out var boolVar))
 						{
 							value = boolVar;
 						}
@@ -58,7 +58,7 @@ namespace GS2Engine.Models
 				}
 
 				value = (T?)Value;;
-				
+
 				return true;
 			}
 			catch (Exception e)

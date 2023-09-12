@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using GS2Engine.Enums;
@@ -50,7 +50,7 @@ namespace GS2Engine.Extensions
 					return StackEntryType.String;
 				default:
 				{
-					Type? stackType = stackObject?.GetType();
+					var stackType = stackObject?.GetType();
 					if (stackType == typeof(TString))
 						return StackEntryType.String;
 

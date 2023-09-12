@@ -443,7 +443,7 @@ namespace GS2Engine.GS2.Script
 		private void SetTimer(double value)
 		{
 			Timer        = DateTime.UtcNow.AddSeconds(value);
-			_timerThread = new Thread(() => DelayedMethodCall(value, OnTimeout));
+			_timerThread = new(() => DelayedMethodCall(value, () => OnTriggerEvent("onTimeout")));
 			_timerThread?.Start();
 		}
 
@@ -453,19 +453,10 @@ namespace GS2Engine.GS2.Script
 			methodToCall();
 		}
 
-		private void OnTimeout()
+		private async void OnTriggerEvent(string eventName)
 		{
 			Timer = null;
-			Execute("onTimeout").ConfigureAwait(false).GetAwaiter().GetResult();
-		}
-
-		public async Task<IStackEntry> RunEvents()
-		{
-			if (!(Timer <= DateTime.UtcNow)) return 0.ToStackEntry();
-
-			Timer = null;
-
-			return 0.ToStackEntry();
+			await Execute(eventName).ConfigureAwait(false);
 		}
 
 		public void AddObjectReference(string objectType, VariableCollection obj)

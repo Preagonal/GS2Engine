@@ -246,6 +246,7 @@ namespace GS2Engine.Models
 			}
 		}
 
+		// ReSharper disable once UnusedMember.Global
 		protected void CallAction() => Script?.Call($"{Id}.onAction", Array.Empty<object>()).ConfigureAwait(false).GetAwaiter().GetResult();
 
 

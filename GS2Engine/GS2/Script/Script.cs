@@ -27,6 +27,7 @@ namespace GS2Engine.GS2.Script
 
 		public readonly VariableCollection? RefObject = null;
 		private         Thread?             _timerThread;
+		private         bool                _executionEnabled = true;
 
 		public Script(
 			TString bytecodeFile,
@@ -87,6 +88,11 @@ namespace GS2Engine.GS2.Script
 			Init();
 		}
 
+		public void HaltExecution()
+		{
+			_executionEnabled = false;
+		}
+
 		private void Init()
 		{
 			foreach (var obj in GlobalFunctions)
@@ -96,7 +102,7 @@ namespace GS2Engine.GS2.Script
 				"settimer",
 				delegate(ScriptMachine machine, IStackEntry[]? args)
 				{
-					if (args?.Length > 0)
+					if (args?.Length > 0 && _executionEnabled)
 						SetTimer((double)(machine.GetEntry(args[0]).GetValue() ?? 0));
 					return 0.ToStackEntry();
 				}

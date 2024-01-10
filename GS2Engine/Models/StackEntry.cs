@@ -1,100 +1,98 @@
 ﻿using System;
 using GS2Engine.Enums;
-using GS2Engine.Exceptions;
 
-namespace GS2Engine.Models
+namespace GS2Engine.Models;
+
+public class StackEntry : IStackEntry
 {
-	public class StackEntry : IStackEntry
+	internal StackEntry(StackEntryType type, object? value)
 	{
-		internal StackEntry(StackEntryType type, object? value)
+		Type  = type;
+		Value = value;
+	}
+
+	private object?        Value      { get; set; }
+	public  StackEntryType Type       { get; private set; }
+	public  object?        GetValue() => Value;
+
+	public T1? GetValue<T1>()
+	{
+		if (TryGetValue<T1>(out var value))
 		{
-			Type = type;
-			Value = value;
+			return (T1?)value;
 		}
 
-		private object?        Value      { get; set; }
-		public  StackEntryType Type       { get; private set; }
-		public  object?        GetValue() => Value;
+		return default;
+	}
 
-		public T1? GetValue<T1>()
+	public bool TryGetValue<T>(out object? value)
+	{
+		try
 		{
-			if (TryGetValue<T1>(out var value))
+			if (Value?.GetType() == typeof(T))
 			{
-				return (T1?)value;
+				value = (T)Value;
 			}
-
-			return default;
-		}
-
-		public bool TryGetValue<T>(out object? value)
-		{
-			try
+			else if (typeof(T) == typeof(bool))
 			{
-				if (Value?.GetType() == typeof(T))
+				if (Value?.GetType() == typeof(TString))
 				{
-					value = (T)Value;
-				}
-				else if (typeof(T) == typeof(bool))
-				{
-					if (Value?.GetType() == typeof(TString))
+					if (bool.TryParse(Value.ToString(), out var boolVar))
 					{
-						if (bool.TryParse(Value.ToString(), out var boolVar))
-						{
-							value = boolVar;
-						}
-						else
-						{
-							value = false;
-						}
+						value = boolVar;
 					}
-					else if (Value?.GetType() == typeof(double))
+					else
 					{
-						value = (double)Value != 0;
+						value = false;
 					}
 				}
-				else if (typeof(T) == typeof(TString))
+				else if (Value?.GetType() == typeof(double))
 				{
-					value = (TString)(Value?.ToString() ?? "");
+					value = (double)Value != 0;
 				}
-
-				value = (T?)Value;;
-
-				return true;
 			}
-			catch (Exception e)
+			else if (typeof(T) == typeof(TString))
 			{
-				Tools.DebugLine(e.Message);
-				value = default;
-				return false;
+				value = (TString)(Value?.ToString() ?? "");
 			}
-		}
 
-		public void SetValue(object? value)
+			value = (T?)Value;;
+
+			return true;
+		}
+		catch (Exception e)
 		{
-			Value = value switch
-			{
-				string   => (TString)value,
-				TString  => value,
-				int      => (double)value,
-				double   => (double)value,
-				float    => (double)value,
-				decimal  => (double)value,
-				string[] => (string[])value,
-				bool     => (bool)value,
-				_        => value,
-			};
-			Type = value switch
-			{
-				string   => StackEntryType.String,
-				TString  => StackEntryType.String,
-				int      => StackEntryType.Number,
-				double   => StackEntryType.Number,
-				float    => StackEntryType.Number,
-				decimal  => StackEntryType.Number,
-				string[] => StackEntryType.Array,
-				bool     => StackEntryType.Boolean,
-				_        => StackEntryType.Array,
-			};
+			Tools.DebugLine(e.Message);
+			value = default;
+			return false;
 		}
+	}
+
+	public void SetValue(object? value)
+	{
+		Value = value switch
+		{
+			string   => (TString)value,
+			TString  => value,
+			int      => (double)value,
+			double   => (double)value,
+			float    => (double)value,
+			decimal  => (double)value,
+			string[] => (string[])value,
+			bool     => (bool)value,
+			_        => value,
+		};
+		Type = value switch
+		{
+			string   => StackEntryType.String,
+			TString  => StackEntryType.String,
+			int      => StackEntryType.Number,
+			double   => StackEntryType.Number,
+			float    => StackEntryType.Number,
+			decimal  => StackEntryType.Number,
+			string[] => StackEntryType.Array,
+			bool     => StackEntryType.Boolean,
+			_        => StackEntryType.Array,
+		};
 	}
 }

@@ -1,11 +1,10 @@
 using System;
 
-namespace GS2Engine.Exceptions
+namespace GS2Engine.Exceptions;
+
+public class ScriptException : Exception
 {
-	public class ScriptException : Exception
+	public ScriptException(string message) : base(message)
 	{
-		public ScriptException(string message) : base(message)
-		{
-		}
 	}
 }

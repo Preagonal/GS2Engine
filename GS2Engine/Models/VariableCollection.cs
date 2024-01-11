@@ -36,8 +36,8 @@ public class VariableCollection
 		else
 			_collection.Add(variable, value);
 
-		if (_callbacks.ContainsKey(variable))
-			_callbacks[variable](value.GetValue());
+		if (_callbacks.TryGetValue(variable, out var callback))
+			callback(value.GetValue());
 
 		return _collection[variable];
 	}

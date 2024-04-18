@@ -1,14 +1,14 @@
-namespace GS2Engine.Enums
+namespace GS2Engine.Enums;
+
+public enum StackEntryType
 {
-	public enum StackEntryType
-	{
-		Number,
-		String,
-		Variable,
-		Boolean,
-		Array,
-		ArrayStart,
-		Player,
-		Function,
-	}
+	Number,
+	String,
+	Variable,
+	Boolean,
+	Array,
+	ArrayStart,
+	Player,
+	Function,
+	Script,
 }

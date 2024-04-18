@@ -97,7 +97,7 @@ def buildStepDocker() {
 			if (env.TAG_NAME) {
 				archive_date = '';
 			}
-			
+
 			stage("Run tests...") {
 				customImage.inside("-u 0") {
 					try{
@@ -182,7 +182,7 @@ node('master') {
 	sh('git fetch --tags');
 
 	env.LATEST_TAG = sh(
-		script: 'git describe --tags --abbrev=0',
+		script: 'git tag -l | tail -1',
 		returnStdout: true
 	).trim();
 

@@ -64,7 +64,7 @@ public static class StackEntryExtensions
 				                                  .Any(x => x.Name.Equals("IGuiControl", StringComparison.CurrentCultureIgnoreCase)))
 					return StackEntryType.Array;
 
-				if (stackType == typeof(VariableCollection))
+				if (stackType != null && (stackType == typeof(VariableCollection) || stackType.IsSubclassOf(typeof(VariableCollection))))
 					return StackEntryType.Array;
 
 				if (stackObject is float)

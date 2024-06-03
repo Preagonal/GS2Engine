@@ -104,7 +104,7 @@ namespace GS2Engine.UnitTests
 			string[] val = {"test1","test2"};
 			
 			//Act
-			IStackEntry test = val.ToStackEntry();
+			var test = val.ToStackEntry();
 			
 			//Assert
 			Assert.Equal(StackEntryType.Array, test.Type);
@@ -119,7 +119,7 @@ namespace GS2Engine.UnitTests
 			int[] val = {1,2};
 			
 			//Act
-			IStackEntry test = val.ToStackEntry();
+			var test = val.ToStackEntry();
 			
 			//Assert
 			Assert.Equal(StackEntryType.Array, test.Type);
@@ -195,7 +195,7 @@ namespace GS2Engine.UnitTests
 			
 			//Act
 			//Assert
-			ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => val.ToStackEntry());
+			var exception = Assert.Throws<ArgumentOutOfRangeException>(() => val.ToStackEntry());
 			Assert.Equal("Specified argument was out of the range of valid values.", exception.Message);
 		}
 

@@ -38,7 +38,7 @@ namespace GS2Engine.UnitTests
 			TString stringy = "asd";
 
 			//Act
-			int length = stringy.length(); 
+			var length = stringy.length(); 
 			
 
 			//Assert

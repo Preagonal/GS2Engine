@@ -33,6 +33,7 @@ public class TString
 	private void AddBuffer(string? input, int length = 0)
 	{
 		Array.Resize(ref buffer, Length + length);
+		ArgumentNullException.ThrowIfNull(input);
 		foreach (var c in Encoding.ASCII.GetBytes(input))
 		{
 			buffer[writePos] = c;

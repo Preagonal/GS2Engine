@@ -388,7 +388,7 @@ public class Script
 	/// <summary>
 	///     Function -> Call Event for Object
 	/// </summary>
-	public async Task Call(string eventName, object[]? args)
+	public async Task Call(string eventName, params object[]? args)
 	{
 		try
 		{

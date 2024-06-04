@@ -6,6 +6,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GS2Engine.TestApp", "GS2Eng
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GS2Engine.UnitTests", "GS2Engine.UnitTests\GS2Engine.UnitTests.csproj", "{93FD9556-014B-4D9E-B8F1-D8C4A7731550}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{ABC120E7-56C6-4964-9635-0C1B142DB227}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		renovate.json = renovate.json
+		Jenkinsfile = Jenkinsfile
+		NuGet.Config = NuGet.Config
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

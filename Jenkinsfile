@@ -43,7 +43,7 @@ def buildStepDocker() {
 	def split_job_name = env.JOB_NAME.split(/\/{1}/);
 	def fixed_job_name = split_job_name[1].replace('%2F',' ');
 
-	def customImage = docker.image("mcr.microsoft.com/dotnet/sdk:7.0");
+	def customImage = docker.image("mcr.microsoft.com/dotnet/sdk:8.0");
 	customImage.pull();
 
 	try {

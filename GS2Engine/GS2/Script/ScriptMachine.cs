@@ -189,11 +189,11 @@ public class ScriptMachine
 								stack.Push(funcRet);
 							break;
 						case StackEntryType.String or Variable
-							when _script.Functions.ContainsKey(cmd?.ToString().ToLower() ?? string.Empty):
-							stack.Push(await Execute(cmd?.ToString().ToLower() ?? string.Empty, parameters));
+							when _script.Functions.ContainsKey(cmd?.ToString()?.ToLower() ?? string.Empty):
+							stack.Push(await Execute(cmd?.ToString()?.ToLower() ?? string.Empty, parameters));
 							break;
 						case StackEntryType.String or Variable when Functions.TryGetValue(
-							cmd?.ToString().ToLower() ?? string.Empty,
+							cmd?.ToString()?.ToLower() ?? string.Empty,
 							out var command
 						):
 							stack.Push(command.Invoke(this, parameters.ToArray()));
@@ -331,7 +331,7 @@ public class ScriptMachine
 					var convEntry = GetEntry(stack.Pop());
 					if (convEntry.Type is StackEntryType.String or Variable)
 						stack.Push(
-							(opWith.Any()
+							(opWith is { Count: not 0 }
 								? opWith?.Peek()
 								        ?.GetValue<VariableCollection>()
 								        ?.GetVariable(getEntryValue<TString>(convEntry)?.ToLower() ?? string.Empty)
@@ -387,13 +387,13 @@ public class ScriptMachine
 					{
 						variable.SetValue(val.GetValue());
 					}
-					else if (opWith.Any())
+					else if (opWith is { Count: not 0 })
 					{
 						try
 						{
 							opWith?.Peek()
 							      ?.GetValue<VariableCollection>()
-							      ?.AddOrUpdate((variable.GetValue() ?? "").ToString().ToLower(), val);
+							      ?.AddOrUpdate((variable?.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty, val);
 						}
 						catch (Exception e)
 						{
@@ -402,12 +402,12 @@ public class ScriptMachine
 					}
 					else if (!_useTemp)
 					{
-						Script.GlobalVariables.AddOrUpdate((variable.GetValue() ?? "").ToString().ToLower(), val);
+						Script.GlobalVariables.AddOrUpdate((variable.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty, val);
 					}
 					else
 					{
 						_useTemp = false;
-						_tempVariables.AddOrUpdate((variable.GetValue() ?? "").ToString().ToLower(), val);
+						_tempVariables.AddOrUpdate((variable.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty, val);
 					}
 
 					break;
@@ -419,7 +419,7 @@ public class ScriptMachine
 						{
 							var funcParamVal = callStack?.Pop();
 							_tempVariables.AddOrUpdate(
-								(funcParam.GetValue() ?? "").ToString().ToLower(),
+								(funcParam.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty,
 								funcParamVal ?? 0.ToStackEntry()
 							);
 						}

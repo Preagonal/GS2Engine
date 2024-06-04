@@ -16,7 +16,7 @@ public static class StackEntryExtensions
 	{
 		return stackObject switch
 		{
-			string    => (TString)stackObject.ToString(),
+			string    => (TString)(stackObject?.ToString() ?? string.Empty),
 			TString   => stackObject,
 			int i     => (double)i,
 			double d  => d,

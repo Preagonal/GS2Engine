@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using GS2Engine.Enums;
@@ -289,6 +290,7 @@ public class ScriptMachine
 					stack.Push(stackSwap2);
 					break;
 				case Opcode.OP_INDEX_DEC:
+					stack.Pop();
 					break;
 				case Opcode.OP_CONV_TO_FLOAT:
 					var test = getEntryValue<object>(stack.Pop());
@@ -437,12 +439,12 @@ public class ScriptMachine
 					{
 						var incVar = GetEntry(stack.Pop());
 
-						var incVal = stack.Any()
+						var incVal = /*stack.Any()
 							? getEntryValue<double>(stack.Pop())
-							: getEntryValue<double>(incVar);
+							:*/ getEntryValue<double>(incVar);
 						if (incVar.Type == Number) incVar.SetValue(incVal + 1);
 
-						stack.Push(((double?)incVar.GetValue())?.ToStackEntry() ?? 0.ToStackEntry());
+						stack.Push(incVar);
 					}
 					catch (Exception e)
 					{
@@ -679,6 +681,29 @@ public class ScriptMachine
 					opWith?.Pop(); //stack.Push();
 					break;
 				case Opcode.OP_FOREACH:
+					if (stack.ToArray().Length > 1 && stack.ToArray()[1].Type == StackEntryType.Array)
+					{
+						var arrForeachIndexEntry = GetEntry(stack.Pop());
+						var arrForeachIndex      = arrForeachIndexEntry.GetValue<double>();
+
+						var arrForeachObjEntry   = GetEntry(stack.Pop());
+						var arrForeachObj        = arrForeachObjEntry.GetValue<List<object>>();
+
+						if ((int)arrForeachIndex == arrForeachObj?.Count)
+						{
+							index     = (int)op.Value;
+							_indexPos = index;
+							break;
+						}
+						var tempVar              = stack.Pop();
+
+						tempVar.SetValue(arrForeachObj?[(int)arrForeachIndex] ?? "");
+
+						stack.Push(tempVar);
+						stack.Push(arrForeachObjEntry);
+						stack.Push(arrForeachIndexEntry);
+					}
+
 					break;
 				case Opcode.OP_THIS:
 					stack.Push(new StackEntry(StackEntryType.Array, Script.GlobalVariables));
@@ -686,7 +711,6 @@ public class ScriptMachine
 				case Opcode.OP_THISO:
 					break;
 				case Opcode.OP_PLAYER:
-					//_script.Objects[p]
 					stack.Push(
 						Script.GlobalObjects.TryGetValue("player", out var o)
 							? new(Player, o)

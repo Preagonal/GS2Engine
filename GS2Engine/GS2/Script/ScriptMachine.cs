@@ -435,31 +435,19 @@ public class ScriptMachine
 					index = _indexPos;
 					break;
 				case Opcode.OP_INC:
-					try
-					{
-						var incVar = GetEntry(stack.Pop());
+					var incVar = GetEntry(stack.Pop());
 
-						var incVal = /*stack.Any()
-							? getEntryValue<double>(stack.Pop())
-							:*/ getEntryValue<double>(incVar);
-						if (incVar.Type == Number) incVar.SetValue(incVal + 1);
+					var incVal = getEntryValue<double>(incVar);
+					if (incVar.Type == Number) incVar.SetValue(incVal + 1);
 
-						stack.Push(incVar);
-					}
-					catch (Exception e)
-					{
-						Tools.DebugLine(e.Message);
-						stack.Push(0.ToStackEntry());
-					}
-
+					stack.Push(incVar);
 					break;
 				case Opcode.OP_DEC:
 					var decVar = GetEntry(stack.Pop());
-					var decVal =
-						stack.Any() ? getEntryValue<double>(stack.Pop()) : getEntryValue<double>(decVar);
+					var decVal = getEntryValue<double>(decVar);
 					if (decVar.Type == Number) decVar.SetValue(decVal - 1);
 
-					stack.Push(((double?)decVar.GetValue())?.ToStackEntry() ?? 0.ToStackEntry());
+					stack.Push(decVar);
 					break;
 				case Opcode.OP_ADD:
 					var addA = getEntryValue<double>(stack.Pop());

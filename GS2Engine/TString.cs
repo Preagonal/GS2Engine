@@ -9,7 +9,7 @@ namespace GS2Engine;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class TString
 {
-	public  byte[] buffer = Array.Empty<byte>();
+	public  byte[] buffer = [];
 	private int    readc;
 	private int    writePos;
 
@@ -135,21 +135,21 @@ public class TString
 
 	public byte readChar()
 	{
-		byte[] val = { };
+		byte[] val = [];
 		read(ref val, 1);
 		return val[0];
 	}
 
 	public short readShort()
 	{
-		byte[] val = { };
+		byte[] val = [];
 		read(ref val, 2);
 		return (short)((val[0] << 8) + val[1]);
 	}
 
 	public short readGShort()
 	{
-		byte[] val = { };
+		byte[] val = [];
 		read(ref val, 2);
 		return (short)(((val[0]-32) << 8) + (val[1]-32));
 	}

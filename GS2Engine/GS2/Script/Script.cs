@@ -21,9 +21,9 @@ public class Script
 	public static readonly ConcurrentDictionary<string, VariableCollection?> GlobalObjects   = new();
 	public static readonly ConcurrentDictionary<string, Command>             GlobalFunctions = new();
 
-	private readonly List<TString>                      _strings  = new();
+	private readonly List<TString>                      _strings  = [];
 	public readonly  Dictionary<string, FunctionParams> Functions = new();
-	private          ScriptCom[]                        _bytecode = Array.Empty<ScriptCom>();
+	private          ScriptCom[]                        _bytecode = [];
 
 	public readonly VariableCollection? RefObject = null;
 	private         Thread?             _timerThread;
@@ -114,7 +114,7 @@ public class Script
 		Machine.Reset();
 		Functions.Clear();
 		ExternalFunctions?.Clear();
-		_bytecode = Array.Empty<ScriptCom>();
+		_bytecode = [];
 		_strings.Clear();
 	}
 

@@ -88,7 +88,7 @@ public class GuiControl : VariableCollection, IGuiControl, IDisposable
 		set => AddOrUpdate("cliptobounds", value.ToStackEntry());
 	}
 
-	public HashSet<IGuiControl?> Controls { get; } = new();
+	public HashSet<IGuiControl?> Controls { get; } = [];
 
 	public int Cursor
 	{
@@ -247,7 +247,7 @@ public class GuiControl : VariableCollection, IGuiControl, IDisposable
 	}
 
 	// ReSharper disable once UnusedMember.Global
-	protected void CallAction() => Script?.Call($"{Id}.onAction", Array.Empty<object>()).ConfigureAwait(false).GetAwaiter().GetResult();
+	protected void CallAction() => Script?.Call($"{Id}.onAction", []).ConfigureAwait(false).GetAwaiter().GetResult();
 
 
 	public virtual void Draw()

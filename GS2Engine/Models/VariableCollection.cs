@@ -29,14 +29,14 @@ public class VariableCollection
 
 	public void Clear() => _collection.Clear();
 
-	public IStackEntry AddOrUpdate(TString variable, IStackEntry value)
+	public IStackEntry AddOrUpdate(TString variable, IStackEntry value, bool skipCallback = false)
 	{
 		if (ContainsVariable(variable))
 			_collection[variable].SetValue(value.GetValue());
 		else
 			_collection.Add(variable, value);
 
-		if (_callbacks.TryGetValue(variable, out var callback))
+		if (_callbacks.TryGetValue(variable, out var callback) && !skipCallback)
 			callback(value.GetValue());
 
 		return _collection[variable];

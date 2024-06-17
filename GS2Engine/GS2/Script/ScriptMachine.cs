@@ -701,7 +701,7 @@ public class ScriptMachine
 				case Opcode.OP_PLAYER:
 					stack.Push(
 						Script.GlobalObjects.TryGetValue("player", out var o)
-							? new(Player, o)
+							? o.ToStackEntry()
 							: 0.ToStackEntry()
 					);
 					break;
@@ -732,9 +732,11 @@ public class ScriptMachine
 		var type = Type.GetType(className);
 		if (type != null)
 			return Activator.CreateInstance(type, arg, _script);
-		foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+		var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+		foreach (var asm in assemblies)
 		{
-			type = asm.GetTypes()
+			var types = asm.GetTypes();
+			type = types
 			          .FirstOrDefault(x => x.Name.Equals(className, StringComparison.CurrentCultureIgnoreCase)) ??
 			       null;
 			if (type != null)

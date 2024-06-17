@@ -11,9 +11,10 @@ public class StackEntry : IStackEntry
 		Value = value;
 	}
 
-	private object?        Value      { get; set; }
-	public  StackEntryType Type       { get; private set; }
-	public  object?        GetValue() => Value;
+	private object?                                        Value      { get; set; }
+	private VariableCollection.VariableCollectionCallback? Callback   { get; set; }
+	public  StackEntryType                                 Type       { get; private set; }
+	public  object?                                        GetValue() => Value;
 
 	public T1? GetValue<T1>()
 	{
@@ -68,7 +69,12 @@ public class StackEntry : IStackEntry
 		}
 	}
 
-	public void SetValue(object? value)
+	public void SetCallback(VariableCollection.VariableCollectionCallback callback)
+	{
+		Callback = callback;
+	}
+
+	public void SetValue(object? value, bool skipCallback = false)
 	{
 		Value = value switch
 		{
@@ -94,5 +100,8 @@ public class StackEntry : IStackEntry
 			bool     => StackEntryType.Boolean,
 			_        => StackEntryType.Array,
 		};
+
+		if (Callback != null && !skipCallback)
+			Callback(value);
 	}
 }

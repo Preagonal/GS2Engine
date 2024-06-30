@@ -383,7 +383,7 @@ public class Script
 	{
 		try
 		{
-			return await Machine.Execute(functionName, parameters);
+			return await Machine.Execute(functionName, parameters).ConfigureAwait(false);
 		}
 		catch (Exception e)
 		{
@@ -395,50 +395,56 @@ public class Script
 	/// <summary>
 	///     Function -> Call Event for Object
 	/// </summary>
-	public async Task Call(string eventName, params object[]? args)
+	public async Task<IStackEntry> Call(string eventName, params object[]? args)
 	{
 		try
 		{
-			Stack<IStackEntry> callStack = new();
-			if (args != null)
-				foreach (var variable in args.Reverse())
-					switch (variable)
-					{
-						case string s:
-							callStack.Push(s.ToStackEntry());
-							break;
-						case int i:
-							callStack.Push(i.ToStackEntry());
-							break;
-						case double d:
-							callStack.Push(d.ToStackEntry());
-							break;
-						case float f:
-							callStack.Push(f.ToStackEntry());
-							break;
-						case decimal dc:
-							callStack.Push(dc.ToStackEntry());
-							break;
-						case string[] sa:
-							callStack.Push(sa.ToStackEntry());
-							break;
-						case int[] ia:
-							callStack.Push(ia.ToStackEntry());
-							break;
-						case bool bo:
-							callStack.Push(bo.ToStackEntry());
-							break;
-						case VariableCollection p:
-							callStack.Push(p.ToStackEntry());
-							break;
-					}
 
-			await Execute(eventName, callStack);
+			if (args == null) return await Execute(eventName, null).ConfigureAwait(false);
+
+			var callStack = new Stack<IStackEntry>();
+			foreach (var variable in args.Reverse())
+			{
+				switch (variable)
+				{
+					case string s:
+						callStack.Push(s.ToStackEntry());
+						break;
+					case int i:
+						callStack.Push(i.ToStackEntry());
+						break;
+					case double d:
+						callStack.Push(d.ToStackEntry());
+						break;
+					case float f:
+						callStack.Push(f.ToStackEntry());
+						break;
+					case decimal dc:
+						callStack.Push(dc.ToStackEntry());
+						break;
+					case string[] sa:
+						callStack.Push(sa.ToStackEntry());
+						break;
+					case int[] ia:
+						callStack.Push(ia.ToStackEntry());
+						break;
+					case bool bo:
+						callStack.Push(bo.ToStackEntry());
+						break;
+					case VariableCollection p:
+						callStack.Push(p.ToStackEntry());
+						break;
+				}
+			}
+
+			return await Execute(eventName, callStack).ConfigureAwait(false);
 		}
 		catch (Exception e)
 		{
 			Console.WriteLine(e.Message);
 		}
+
+		return 0.ToStackEntry();
 	}
 
 	public async Task<IStackEntry> TriggerEvent(string eventName)
@@ -450,7 +456,7 @@ public class Script
 				break;
 			}
 			default:
-				return await Execute(eventName);
+				return await Execute(eventName).ConfigureAwait(false);
 		}
 
 		return 0.ToStackEntry();

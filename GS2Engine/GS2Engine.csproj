@@ -7,7 +7,7 @@
 		<LangVersion>latest</LangVersion>
 		<Title>GS2Engine</Title>
 		<Authors>Preagonal</Authors>
-		<Copyright>Preagonal 2023</Copyright>
+		<Copyright>Preagonal 2023-2024</Copyright>
 		<PackageProjectUrl>https://github.com/Preagonal/GS2Engine</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/Preagonal/GS2Engine</RepositoryUrl>
 		<AssemblyVersion>1.0.0</AssemblyVersion>
@@ -26,6 +26,10 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="ConfigureAwaitChecker.Analyzer" Version="5.0.0.1">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="System.Collections" Version="4.3.0" />
 	</ItemGroup>

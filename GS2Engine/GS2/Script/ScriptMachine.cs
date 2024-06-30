@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using GS2Engine.Enums;
@@ -191,7 +190,7 @@ public class ScriptMachine
 							break;
 						case StackEntryType.String or Variable
 							when _script.Functions.ContainsKey(cmd?.ToString()?.ToLower() ?? string.Empty):
-							stack.Push(await Execute(cmd?.ToString()?.ToLower() ?? string.Empty, parameters));
+							stack.Push(await Execute(cmd?.ToString()?.ToLower() ?? string.Empty, parameters).ConfigureAwait(false));
 							break;
 						case StackEntryType.String or Variable when Functions.TryGetValue(
 							cmd?.ToString()?.ToLower() ?? string.Empty,
@@ -227,7 +226,7 @@ public class ScriptMachine
 				case Opcode.OP_SLEEP:
 					var sleep = getEntryValue<double>(stack.Pop());
 					sleep *= 1000;
-					await Task.Delay((int)sleep);
+					await Task.Delay((int)sleep).ConfigureAwait(false);
 					break;
 				case Opcode.OP_CMD_CALL:
 					//index = _script.Field170Xc0;
@@ -284,13 +283,18 @@ public class ScriptMachine
 					stack.Push(stack.Peek());
 					break;
 				case Opcode.OP_SWAP_LAST_OPS:
-					var stackSwap1 = stack.Pop();
-					var stackSwap2 = stack.Pop();
-					stack.Push(stackSwap1);
-					stack.Push(stackSwap2);
+					if (stack.Count > 1)
+					{
+						var stackSwap1 = stack.Pop();
+						var stackSwap2 = stack.Pop();
+						stack.Push(stackSwap1);
+						stack.Push(stackSwap2);
+					}
+
 					break;
 				case Opcode.OP_INDEX_DEC:
-					stack.Pop();
+					if (stack.Count > 0)
+						stack.Pop();
 					break;
 				case Opcode.OP_CONV_TO_FLOAT:
 					var test = getEntryValue<object>(stack.Pop());
@@ -358,6 +362,15 @@ public class ScriptMachine
 				case Opcode.OP_SETARRAY:
 					break;
 				case Opcode.OP_INLINE_NEW:
+					if (stack.Count > 0)
+					{
+						if (stack.Peek().Type == StackEntryType.String)
+						{
+							var inlineNew = stack.Pop();
+							stack.Push(inlineNew.GetValue().ToStackEntry(true));
+						}
+					}
+
 					break;
 				case Opcode.OP_MAKEVAR:
 					break;

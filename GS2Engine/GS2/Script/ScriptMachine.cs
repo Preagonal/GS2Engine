@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using GS2Engine.Enums;
@@ -289,6 +290,7 @@ public class ScriptMachine
 					stack.Push(stackSwap2);
 					break;
 				case Opcode.OP_INDEX_DEC:
+					stack.Pop();
 					break;
 				case Opcode.OP_CONV_TO_FLOAT:
 					var test = getEntryValue<object>(stack.Pop());
@@ -433,31 +435,19 @@ public class ScriptMachine
 					index = _indexPos;
 					break;
 				case Opcode.OP_INC:
-					try
-					{
-						var incVar = GetEntry(stack.Pop());
+					var incVar = GetEntry(stack.Pop());
 
-						var incVal = stack.Any()
-							? getEntryValue<double>(stack.Pop())
-							: getEntryValue<double>(incVar);
-						if (incVar.Type == Number) incVar.SetValue(incVal + 1);
+					var incVal = getEntryValue<double>(incVar);
+					if (incVar.Type == Number) incVar.SetValue(incVal + 1);
 
-						stack.Push(((double?)incVar.GetValue())?.ToStackEntry() ?? 0.ToStackEntry());
-					}
-					catch (Exception e)
-					{
-						Tools.DebugLine(e.Message);
-						stack.Push(0.ToStackEntry());
-					}
-
+					stack.Push(incVar);
 					break;
 				case Opcode.OP_DEC:
 					var decVar = GetEntry(stack.Pop());
-					var decVal =
-						stack.Any() ? getEntryValue<double>(stack.Pop()) : getEntryValue<double>(decVar);
+					var decVal = getEntryValue<double>(decVar);
 					if (decVar.Type == Number) decVar.SetValue(decVal - 1);
 
-					stack.Push(((double?)decVar.GetValue())?.ToStackEntry() ?? 0.ToStackEntry());
+					stack.Push(decVar);
 					break;
 				case Opcode.OP_ADD:
 					var addA = getEntryValue<double>(stack.Pop());
@@ -679,6 +669,29 @@ public class ScriptMachine
 					opWith?.Pop(); //stack.Push();
 					break;
 				case Opcode.OP_FOREACH:
+					if (stack.ToArray().Length > 1 && stack.ToArray()[1].Type == StackEntryType.Array)
+					{
+						var arrForeachIndexEntry = GetEntry(stack.Pop());
+						var arrForeachIndex      = arrForeachIndexEntry.GetValue<double>();
+
+						var arrForeachObjEntry   = GetEntry(stack.Pop());
+						var arrForeachObj        = arrForeachObjEntry.GetValue<List<object>>();
+
+						if ((int)arrForeachIndex == arrForeachObj?.Count)
+						{
+							index     = (int)op.Value;
+							_indexPos = index;
+							break;
+						}
+						var tempVar              = stack.Pop();
+
+						tempVar.SetValue(arrForeachObj?[(int)arrForeachIndex] ?? "");
+
+						stack.Push(tempVar);
+						stack.Push(arrForeachObjEntry);
+						stack.Push(arrForeachIndexEntry);
+					}
+
 					break;
 				case Opcode.OP_THIS:
 					stack.Push(new StackEntry(StackEntryType.Array, Script.GlobalVariables));
@@ -686,10 +699,9 @@ public class ScriptMachine
 				case Opcode.OP_THISO:
 					break;
 				case Opcode.OP_PLAYER:
-					//_script.Objects[p]
 					stack.Push(
 						Script.GlobalObjects.TryGetValue("player", out var o)
-							? new(Player, o)
+							? o.ToStackEntry()
 							: 0.ToStackEntry()
 					);
 					break;
@@ -720,9 +732,11 @@ public class ScriptMachine
 		var type = Type.GetType(className);
 		if (type != null)
 			return Activator.CreateInstance(type, arg, _script);
-		foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+		var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+		foreach (var asm in assemblies)
 		{
-			type = asm.GetTypes()
+			var types = asm.GetTypes();
+			type = types
 			          .FirstOrDefault(x => x.Name.Equals(className, StringComparison.CurrentCultureIgnoreCase)) ??
 			       null;
 			if (type != null)

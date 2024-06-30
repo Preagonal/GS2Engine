@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GS2Engine.Enums;
 using GS2Engine.Extensions;
 using GS2Engine.GS2.ByteCode;
 using GS2Engine.Models;
@@ -21,9 +22,9 @@ public class Script
 	public static readonly ConcurrentDictionary<string, VariableCollection?> GlobalObjects   = new();
 	public static readonly ConcurrentDictionary<string, Command>             GlobalFunctions = new();
 
-	private readonly List<TString>                      _strings  = new();
+	private readonly List<TString>                      _strings  = [];
 	public readonly  Dictionary<string, FunctionParams> Functions = new();
-	private          ScriptCom[]                        _bytecode = Array.Empty<ScriptCom>();
+	private          ScriptCom[]                        _bytecode = [];
 
 	public readonly VariableCollection? RefObject = null;
 	private         Thread?             _timerThread;
@@ -31,13 +32,16 @@ public class Script
 
 	public Script(
 		TString bytecodeFile,
-		VariableCollection? refObject = null
+		VariableCollection? refObject = null,
+		ScriptType? type = null
 	)
 	{
 		Name      = Path.GetFileNameWithoutExtension(bytecodeFile);
 		File      = bytecodeFile;
 		RefObject = refObject;
 		Machine   = new(this);
+		Type      = type ?? ScriptType.Weapon;
+
 		SetStream(ReadAllBytes(bytecodeFile));
 
 		Init();
@@ -46,13 +50,15 @@ public class Script
 	public Script(
 		TString name,
 		byte[] bytecode,
-		VariableCollection? refObject = null
+		VariableCollection? refObject = null,
+		ScriptType? type = null
 	)
 	{
 		Name      = name;
 		File      = "";
 		RefObject = refObject;
 		Machine   = new(this);
+		Type      = type ?? ScriptType.Weapon;
 
 		SetStream(bytecode);
 
@@ -63,6 +69,7 @@ public class Script
 
 	public  TString       Name     { get; set; }
 	public  TString       File     { get; set; }
+	public  ScriptType    Type     { get; }
 	private int           Gs1Flags { get; set; }
 	public  ScriptMachine Machine  { get; }
 	private DateTime?     Timer    { get; set; }
@@ -114,7 +121,7 @@ public class Script
 		Machine.Reset();
 		Functions.Clear();
 		ExternalFunctions?.Clear();
-		_bytecode = Array.Empty<ScriptCom>();
+		_bytecode = [];
 		_strings.Clear();
 	}
 

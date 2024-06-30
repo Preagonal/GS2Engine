@@ -29,25 +29,22 @@ public class VariableCollection
 
 	public void Clear() => _collection.Clear();
 
-	public IStackEntry AddOrUpdate(TString variable, IStackEntry value)
+	public IStackEntry AddOrUpdate(TString variable, IStackEntry value, bool skipCallback = false)
 	{
 		if (ContainsVariable(variable))
-			_collection[variable].SetValue(value.GetValue());
+			_collection[variable].SetValue(value.GetValue(), skipCallback);
 		else
 			_collection.Add(variable, value);
-
-		if (_callbacks.TryGetValue(variable, out var callback))
-			callback(value.GetValue());
 
 		return _collection[variable];
 	}
 
 	protected void SetCallback(TString variable, VariableCollectionCallback callback)
 	{
-		if (_callbacks.ContainsKey(variable))
-			_callbacks[variable] = callback;
-		else
-			_callbacks.Add(variable, callback);
+		if (!ContainsVariable(variable))
+			_collection.Add(variable, 0.ToStackEntry());
+
+		_collection[variable].SetCallback(callback);
 	}
 
 	public IStackEntry SetVariable(TString variable, IStackEntry value) => AddOrUpdate(variable, value);
@@ -56,9 +53,9 @@ public class VariableCollection
 
 	public void AddOrUpdate(IDictionary<string, IStackEntry>? collection)
 	{
-		if (collection != null)
-			foreach (var variable in collection)
-				AddOrUpdate(variable.Key, variable.Value);
+		if (collection == null) return;
+		foreach (var variable in collection)
+			AddOrUpdate(variable.Key, variable.Value);
 	}
 
 	public IDictionary<string, IStackEntry> GetDictionary() => _collection;

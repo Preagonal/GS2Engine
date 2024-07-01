@@ -29,4 +29,14 @@
 	  <ProjectReference Include="..\GS2Engine\GS2Engine.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="scripts\prebaked\" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="scripts\prebaked\login.gs2bc">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
+
 </Project>

@@ -185,8 +185,7 @@ public class ScriptMachine
 								      ?.GetValue<Script.Command>()
 								      ?.Invoke(this, parameters.ToArray()) ??
 								0.ToStackEntry();
-							if (funcRet.GetValue() is not (double)0)
-								stack.Push(funcRet);
+							stack.Push(funcRet);
 							break;
 						case StackEntryType.String or Variable
 							when _script.Functions.ContainsKey(cmd?.ToString()?.ToLower() ?? string.Empty):

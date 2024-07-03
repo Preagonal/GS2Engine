@@ -196,7 +196,7 @@ public class StackEntryExtensionsTests
 		//Act
 		//Assert
 		var exception = Assert.Throws<ArgumentOutOfRangeException>(() => val.ToStackEntry());
-		Assert.Equal("Specified argument was out of the range of valid values.", exception.Message);
+		Assert.Equal("Specified argument was out of the range of valid values. (Parameter 'stackObject')", exception.Message);
 	}
 
 	[Fact]

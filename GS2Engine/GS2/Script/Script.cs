@@ -14,7 +14,7 @@ using static System.IO.File;
 
 namespace GS2Engine.GS2.Script;
 
-public class Script
+public class Script : VariableCollection
 {
 	public delegate IStackEntry Command(ScriptMachine machine, IStackEntry[]? args);
 

@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using GS2Engine.Enums;
 using GS2Engine.Exceptions;
@@ -120,12 +122,13 @@ public class ScriptMachine
 						? compVar
 						: orCompVar is double && orCompVar.Equals((double)1);
 
-					if (!orCompare)
+					if (orCompare)
 					{
-						index            = (int)op.Value;
-						_scriptStackSize = curIndex + -1;
-						_indexPos        = index;
+						index     = (int)op.Value;
+						_indexPos = index;
+						stack.Push(orCompare.ToStackEntry());
 					}
+
 
 					break;
 				case Opcode.OP_IF:

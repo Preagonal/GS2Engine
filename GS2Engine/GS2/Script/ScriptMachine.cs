@@ -52,7 +52,7 @@ public class ScriptMachine
 		if (_firstRun)
 			_firstRun = false;
 
-		const int maxLoopCount = 10000;
+		//const int maxLoopCount = 10000; // TODO: FIX
 
 		IStackEntry?       opCopy = null;
 		Stack<IStackEntry> opWith = new();
@@ -234,9 +234,11 @@ public class ScriptMachine
 					//index = _script.Field170Xc0;
 					if ((int)op.Value == index)
 					{
+						/* TODO: Make a proper fix
 						if (maxLoopCount <= op.LoopCount &&
 						    !functionName.Equals("onTimeout", StringComparison.CurrentCultureIgnoreCase))
 							throw new ScriptException("Loop limit exceeded");
+						*/
 
 						op.LoopCount += 1;
 						index        =  _indexPos;

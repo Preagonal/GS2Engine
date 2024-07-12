@@ -26,9 +26,8 @@ public class Script : VariableCollection
 	public readonly  Dictionary<string, FunctionParams> Functions = new();
 	private          ScriptCom[]                        _bytecode = [];
 
-	public readonly VariableCollection? RefObject = null;
-	private         Thread?             _timerThread;
-	private         bool                _executionEnabled = true;
+	public readonly  VariableCollection?        RefObject = null;
+	private          bool                       _executionEnabled = true;
 
 	public Script(
 		TString bytecodeFile,
@@ -124,7 +123,6 @@ public class Script : VariableCollection
 		_bytecode = [];
 		_strings.Clear();
 	}
-
 
 	private void SetStream(TString bytecodeParam)
 	{
@@ -338,7 +336,7 @@ public class Script : VariableCollection
 
 		var infoSection = bytecodeParam.readChars(infoSectionLength);
 
-		string[] data = infoSection.ToString().Split(',');
+		var data = infoSection.ToString().Split(',');
 
 		var target = data[0];
 		var name   = data[1];
@@ -366,7 +364,6 @@ public class Script : VariableCollection
 
 	private void addFunction(TString functionName, int pos, bool isPublic) =>
 		Functions.Add(functionName.ToString().ToLower(), new() { BytecodePosition = pos, IsPublic = isPublic });
-
 
 	private static void onScriptUpdated()
 	{
@@ -464,9 +461,26 @@ public class Script : VariableCollection
 
 	private void SetTimer(double value)
 	{
-		Timer        = DateTime.UtcNow.AddSeconds(value);
-		_timerThread = new(() => DelayedMethodCall(value, () => OnTriggerEvent("onTimeout")));
-		_timerThread?.Start();
+		Timer = DateTime.UtcNow.AddSeconds(value);
+		try
+		{
+			if (!ThreadPool.QueueUserWorkItem(
+				    delegate
+				    {
+					    DelayedMethodCall(
+						    value,
+						    () => OnTriggerEvent("onTimeout").ConfigureAwait(false).GetAwaiter().GetResult()
+					    );
+				    }
+			    ))
+			{
+				Console.WriteLine("Timer function not queued");
+			}
+		}
+		catch (Exception e)
+		{
+			Console.WriteLine($"{e.Message}: {e}");
+		}
 	}
 
 	private static void DelayedMethodCall(double seconds, Action methodToCall)
@@ -475,7 +489,7 @@ public class Script : VariableCollection
 		methodToCall();
 	}
 
-	private async void OnTriggerEvent(string eventName)
+	private async Task OnTriggerEvent(string eventName)
 	{
 		Timer = null;
 		await Execute(eventName).ConfigureAwait(false);

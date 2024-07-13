@@ -14,7 +14,7 @@ using static System.IO.File;
 
 namespace GS2Engine.GS2.Script;
 
-public class Script
+public class Script : VariableCollection
 {
 	public delegate IStackEntry Command(ScriptMachine machine, IStackEntry[]? args);
 
@@ -26,9 +26,8 @@ public class Script
 	public readonly  Dictionary<string, FunctionParams> Functions = new();
 	private          ScriptCom[]                        _bytecode = [];
 
-	public readonly VariableCollection? RefObject = null;
-	private         Thread?             _timerThread;
-	private         bool                _executionEnabled = true;
+	public readonly  VariableCollection?        RefObject = null;
+	private          bool                       _executionEnabled = true;
 
 	public Script(
 		TString bytecodeFile,
@@ -95,10 +94,9 @@ public class Script
 		Init();
 	}
 
-	public void HaltExecution()
-	{
-		_executionEnabled = false;
-	}
+	public void HaltExecution() => _executionEnabled = false;
+
+	public void EnableExecution() => _executionEnabled = true;
 
 	private void Init()
 	{
@@ -114,6 +112,8 @@ public class Script
 				return 0.ToStackEntry();
 			}
 		);
+
+		EnableExecution();
 	}
 
 	private void Reset()
@@ -123,8 +123,9 @@ public class Script
 		ExternalFunctions?.Clear();
 		_bytecode = [];
 		_strings.Clear();
+		Clear();
+		HaltExecution();
 	}
-
 
 	private void SetStream(TString bytecodeParam)
 	{
@@ -338,7 +339,7 @@ public class Script
 
 		var infoSection = bytecodeParam.readChars(infoSectionLength);
 
-		string[] data = infoSection.ToString().Split(',');
+		var data = infoSection.ToString().Split(',');
 
 		var target = data[0];
 		var name   = data[1];
@@ -366,7 +367,6 @@ public class Script
 
 	private void addFunction(TString functionName, int pos, bool isPublic) =>
 		Functions.Add(functionName.ToString().ToLower(), new() { BytecodePosition = pos, IsPublic = isPublic });
-
 
 	private static void onScriptUpdated()
 	{
@@ -464,18 +464,35 @@ public class Script
 
 	private void SetTimer(double value)
 	{
-		Timer        = DateTime.UtcNow.AddSeconds(value);
-		_timerThread = new(() => DelayedMethodCall(value, () => OnTriggerEvent("onTimeout")));
-		_timerThread?.Start();
+		Timer = DateTime.UtcNow.AddSeconds(value);
+		try
+		{
+			if (!ThreadPool.QueueUserWorkItem(
+				    delegate
+				    {
+					    DelayedMethodCall(
+						    value,
+						    () => OnTriggerEvent("onTimeout").ConfigureAwait(false).GetAwaiter().GetResult()
+					    );
+				    }
+			    ))
+			{
+				Console.WriteLine("Timer function not queued");
+			}
+		}
+		catch (Exception e)
+		{
+			Console.WriteLine($"{e.Message}: {e}");
+		}
 	}
 
 	private static void DelayedMethodCall(double seconds, Action methodToCall)
 	{
-		Thread.Sleep((int)(seconds * 1000));  // Convert seconds to milliseconds
+		Thread.Sleep((int)(seconds * 1500));  // Convert seconds to milliseconds
 		methodToCall();
 	}
 
-	private async void OnTriggerEvent(string eventName)
+	private async Task OnTriggerEvent(string eventName)
 	{
 		Timer = null;
 		await Execute(eventName).ConfigureAwait(false);

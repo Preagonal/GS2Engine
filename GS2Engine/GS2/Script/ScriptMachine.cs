@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using GS2Engine.Enums;
 using GS2Engine.Exceptions;
@@ -50,7 +52,7 @@ public class ScriptMachine
 		if (_firstRun)
 			_firstRun = false;
 
-		const int maxLoopCount = 10000;
+		//const int maxLoopCount = 10000; // TODO: FIX
 
 		IStackEntry?       opCopy = null;
 		Stack<IStackEntry> opWith = new();
@@ -120,11 +122,11 @@ public class ScriptMachine
 						? compVar
 						: orCompVar is double && orCompVar.Equals((double)1);
 
-					if (!orCompare)
+					if (orCompare)
 					{
-						index            = (int)op.Value;
-						_scriptStackSize = curIndex + -1;
-						_indexPos        = index;
+						index     = (int)op.Value;
+						_indexPos = index;
+						stack.Push(orCompare.ToStackEntry());
 					}
 
 					break;
@@ -162,9 +164,8 @@ public class ScriptMachine
 
 					break;
 				case Opcode.OP_CALL:
-					var callEntry = GetEntry(stack.Pop());
-					var cmd       = getEntryValue<object>(callEntry);
-
+					var callEntry  = GetEntry(stack.Pop(), returnStackEntryIfNotFound: true);
+					var cmd        = GetEntryValue<object>(callEntry, returnStackEntryIfNotFound: true);
 					var parameters = stack.Clone();
 					while (stack.Peek()?.Type != ArrayStart) stack.Pop();
 					stack.Pop();
@@ -214,16 +215,15 @@ public class ScriptMachine
 							stack.Push(0.ToStackEntry());
 							break;
 					}
-
 					break;
 				case Opcode.OP_RET:
 					IStackEntry ret = 0.ToStackEntry();
 					if (stack.Count > 0)
 						ret = stack.Pop();
+					return GetEntry(ret);
 
-					return ret;
 				case Opcode.OP_SLEEP:
-					var sleep = getEntryValue<double>(stack.Pop());
+					var sleep = GetEntryValue<double>(stack.Pop());
 					sleep *= 1000;
 					await Task.Delay((int)sleep).ConfigureAwait(false);
 					break;
@@ -231,9 +231,11 @@ public class ScriptMachine
 					//index = _script.Field170Xc0;
 					if ((int)op.Value == index)
 					{
+						/* TODO: Make a proper fix
 						if (maxLoopCount <= op.LoopCount &&
 						    !functionName.Equals("onTimeout", StringComparison.CurrentCultureIgnoreCase))
 							throw new ScriptException("Loop limit exceeded");
+						*/
 
 						op.LoopCount += 1;
 						index        =  _indexPos;
@@ -260,7 +262,7 @@ public class ScriptMachine
 					stack.Push((op.VariableName ?? "").ToStackEntry());
 					break;
 				case Opcode.OP_TYPE_VAR:
-					stack.Push((op.VariableName ?? "").ToStackEntry(true));
+					stack.Push((op.VariableName?.ToLower() ?? "").ToStackEntry(true));
 					break;
 				case Opcode.OP_TYPE_ARRAY:
 					stack.Push(new StackEntry(ArrayStart, null));
@@ -296,7 +298,7 @@ public class ScriptMachine
 						stack.Pop();
 					break;
 				case Opcode.OP_CONV_TO_FLOAT:
-					var test = getEntryValue<object>(stack.Pop());
+					var test = GetEntryValue<object>(stack.Pop());
 
 					double convToFloatVal;
 					if (test?.GetType() == typeof(TString) &&
@@ -313,15 +315,62 @@ public class ScriptMachine
 					stack.Push(convToFloatVal.ToStackEntry());
 					break;
 				case Opcode.OP_CONV_TO_STRING:
-					stack.Push(getEntryValue<object>(stack.Pop())?.ToString().ToStackEntry() ?? "".ToStackEntry());
+					var convToStringObject = GetEntryValue<object>(stack.Pop());
+					if (convToStringObject is IList convListToString && convListToString.GetType().IsGenericType)
+					{
+						var s = new StringBuilder();
+						foreach (var convListString in convListToString)
+						{
+							if (convListString is bool boolConvListString)
+							{
+								s.Append($"{(Convert.ToInt32(boolConvListString)).ToString()},");
+							}
+							else
+							{
+								s.Append($"{convListString.ToString()},");
+							}
+						}
+						var convListResult = s.ToString();
+						s.Clear();
+						convToStringObject = convListResult[..^1];
+					}
+					if (convToStringObject is bool boolConvToStringObject)
+					{
+						convToStringObject = (Convert.ToInt32(boolConvToStringObject)).ToString();
+					}
+					stack.Push(convToStringObject?.ToString().ToStackEntry() ?? "".ToStackEntry());
 					break;
 				case Opcode.OP_MEMBER_ACCESS:
 					var stackVal          = stack.Pop();
-					var memberAccessParam = getEntryValue<TString>(stackVal, StackEntryType.String);
-
+					var memberAccessParam = GetEntryValue<TString>(stackVal, StackEntryType.String);
 					try
 					{
-						var memberAccessObject = getEntryValue<VariableCollection>(stack.Pop());
+						if (stack.Peek()?.Type == StackEntryType.Script)
+						{
+							var scriptStackEntry     = stack.Pop();
+							var scriptObject         = scriptStackEntry.GetValue<Script>();
+							var stackValFunctionName = stackVal.GetValue<TString>() ?? "";
+							if (scriptObject != null &&
+							    scriptObject.Functions.ContainsKey(stackValFunctionName.ToLower()) &&
+							    scriptObject.Functions[stackValFunctionName.ToLower()].IsPublic)
+							{
+								var memberCommand = (Script.Command)((_, args) =>
+									// ReSharper disable once CoVariantArrayConversion
+									scriptObject.Call(stackValFunctionName.ToLower(), args)
+									            .ConfigureAwait(false)
+									            .GetAwaiter()
+									            .GetResult());
+								stack.Push(memberCommand.ToStackEntry());
+							}
+							else
+							{
+								var scriptObjectMember             = scriptObject?.GetVariable(memberAccessParam ?? "");
+								stack.Push(scriptObjectMember ?? 0.ToStackEntry());
+							}
+							break;
+						}
+						var memberAccessEntry  = GetEntry(stack.Pop());
+						var memberAccessObject = memberAccessEntry.GetValue<VariableCollection>();
 						var member             = memberAccessObject?.GetVariable(memberAccessParam ?? "");
 						stack.Push(member ?? 0.ToStackEntry());
 					}
@@ -330,7 +379,6 @@ public class ScriptMachine
 						Tools.DebugLine(e.Message);
 						stack.Push(0.ToStackEntry());
 					}
-
 					break;
 				case Opcode.OP_CONV_TO_OBJECT:
 					var convEntry = GetEntry(stack.Pop());
@@ -339,7 +387,7 @@ public class ScriptMachine
 							(opWith is { Count: not 0 }
 								? opWith?.Peek()
 								        ?.GetValue<VariableCollection>()
-								        ?.GetVariable(getEntryValue<TString>(convEntry)?.ToLower() ?? string.Empty)
+								        ?.GetVariable(GetEntryValue<TString>(convEntry)?.ToLower() ?? string.Empty)
 								: GetEntry(convEntry, Variable))!
 						);
 					else
@@ -357,6 +405,13 @@ public class ScriptMachine
 					stack.Push(new StackEntry(StackEntryType.Array, stackArr)); //push new array onto stack
 					break;
 				case Opcode.OP_ARRAY_NEW:
+					var arraySize = (int)stack.Pop().GetValue<double>();
+					var newArray  = new object[arraySize];
+					for (var newArrayI = 0; newArrayI < arraySize; newArrayI++)
+					{
+						newArray[newArrayI] = 0d;
+					}
+					stack.Push(newArray.ToStackEntry());
 					break;
 				case Opcode.OP_SETARRAY:
 					break;
@@ -379,8 +434,8 @@ public class ScriptMachine
 					try
 					{
 						var newObjectRet = (VariableCollection)GetInstance(
-							getEntryValue<TString>(newObject) ?? string.Empty,
-							getEntryValue<object>(newObjectParam)?.ToString()!
+							GetEntryValue<TString>(newObject) ?? string.Empty,
+							GetEntryValue<object>(newObjectParam, returnStackEntryIfNotFound: true)?.ToString()!
 						)!;
 						stack.Push(newObjectRet?.ToStackEntry() ?? 0.ToStackEntry());
 					}
@@ -392,14 +447,20 @@ public class ScriptMachine
 
 					break;
 				case Opcode.OP_INLINE_CONDITIONAL:
+					/*
+					var inlineConditional = stack.Pop();
+					if (inlineConditional.GetValue<bool>() != false) {
+						inlineConditional.SetValue(1.0d);
+					}
+					stack.Push(inlineConditional);
+					*/
 					break;
 				case Opcode.OP_ASSIGN:
-					var val = stack.Pop();
-
+					var val      = stack.Pop();
 					var variable = (stack.Count == 0 ? opCopy : GetEntry(stack.Pop())) ?? 0.ToStackEntry();
 					if (variable.Type != Variable /*StackEntryType.String or Number val.Type*/)
 					{
-						variable.SetValue(val.GetValue());
+						variable.SetValue(GetEntry(val).GetValue());
 					}
 					else if (opWith is { Count: not 0 })
 					{
@@ -407,7 +468,7 @@ public class ScriptMachine
 						{
 							opWith?.Peek()
 							      ?.GetValue<VariableCollection>()
-							      ?.AddOrUpdate((variable?.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty, val);
+							      ?.AddOrUpdate((variable?.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty, GetEntry(val));
 						}
 						catch (Exception e)
 						{
@@ -416,12 +477,12 @@ public class ScriptMachine
 					}
 					else if (!_useTemp)
 					{
-						Script.GlobalVariables.AddOrUpdate((variable.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty, val);
+						Script.GlobalVariables.AddOrUpdate((variable.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty, GetEntry(val));
 					}
 					else
 					{
 						_useTemp = false;
-						_tempVariables.AddOrUpdate((variable.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty, val);
+						_tempVariables.AddOrUpdate((variable.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty, GetEntry(val));
 					}
 
 					break;
@@ -431,11 +492,14 @@ public class ScriptMachine
 						var funcParam = stack.Pop();
 						try
 						{
-							var funcParamVal = callStack?.Pop();
-							_tempVariables.AddOrUpdate(
-								(funcParam.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty,
-								funcParamVal ?? 0.ToStackEntry()
-							);
+							if (callStack is { Count: > 0 })
+							{
+								var funcParamVal = callStack.Pop();
+								_tempVariables.AddOrUpdate(
+									(funcParam.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty,
+									funcParamVal ?? 0.ToStackEntry()
+								);
+							}
 						}
 						catch (Exception e)
 						{
@@ -449,46 +513,46 @@ public class ScriptMachine
 				case Opcode.OP_INC:
 					var incVar = GetEntry(stack.Pop());
 
-					var incVal = getEntryValue<double>(incVar);
+					var incVal = GetEntryValue<double>(incVar);
 					if (incVar.Type == Number) incVar.SetValue(incVal + 1);
 
 					stack.Push(incVar);
 					break;
 				case Opcode.OP_DEC:
 					var decVar = GetEntry(stack.Pop());
-					var decVal = getEntryValue<double>(decVar);
+					var decVal = GetEntryValue<double>(decVar);
 					if (decVar.Type == Number) decVar.SetValue(decVal - 1);
 
 					stack.Push(decVar);
 					break;
 				case Opcode.OP_ADD:
-					var addA = getEntryValue<double>(stack.Pop());
-					var addB = getEntryValue<double>(stack.Pop());
+					var addA = GetEntryValue<double>(stack.Pop());
+					var addB = GetEntryValue<double>(stack.Pop());
 					stack.Push((addB + addA).ToStackEntry());
 					break;
 				case Opcode.OP_SUB:
-					var subA = getEntryValue<double>(stack.Pop());
-					var subB = getEntryValue<double>(stack.Pop());
+					var subA = GetEntryValue<double>(stack.Pop());
+					var subB = GetEntryValue<double>(stack.Pop());
 					stack.Push((subB - subA).ToStackEntry());
 					break;
 				case Opcode.OP_MUL:
-					var mulA = getEntryValue<double>(stack.Pop());
-					var mulB = getEntryValue<double>(stack.Pop());
+					var mulA = GetEntryValue<double>(stack.Pop());
+					var mulB = GetEntryValue<double>(stack.Pop());
 					stack.Push((mulB * mulA).ToStackEntry());
 					break;
 				case Opcode.OP_DIV:
-					var divA = getEntryValue<double>(stack.Pop());
-					var divB = getEntryValue<double>(stack.Pop());
+					var divA = GetEntryValue<double>(stack.Pop());
+					var divB = GetEntryValue<double>(stack.Pop());
 					stack.Push((divB / divA).ToStackEntry());
 					break;
 				case Opcode.OP_MOD:
-					var modA = getEntryValue<double>(stack.Pop());
-					var modB = getEntryValue<double>(stack.Pop());
+					var modA = GetEntryValue<double>(stack.Pop());
+					var modB = GetEntryValue<double>(stack.Pop());
 					stack.Push((modB % modA).ToStackEntry());
 					break;
 				case Opcode.OP_POW:
-					var powA = getEntryValue<double>(stack.Pop());
-					var powB = getEntryValue<double>(stack.Pop());
+					var powA = GetEntryValue<double>(stack.Pop());
+					var powB = GetEntryValue<double>(stack.Pop());
 					stack.Push(Math.Pow(powB, powA).ToStackEntry());
 					break;
 				case Opcode.OP_NOT:
@@ -496,33 +560,40 @@ public class ScriptMachine
 				case Opcode.OP_UNARYSUB:
 					break;
 				case Opcode.OP_EQ:
-					var eq1 = getEntryValue<object?>(stack.Pop());
-					var eq2 = getEntryValue<object?>(stack.Pop());
-					stack.Push((eq1 ?? false).Equals(eq2).ToStackEntry());
+					var eq1 = GetEntryValue<object?>(stack.Pop());
+					var eq2 = GetEntryValue<object?>(stack.Pop());
+					if (eq1 is IList && eq1.GetType().IsGenericType && eq2 is IList && eq2.GetType().IsGenericType)
+					{
+						stack.Push(((List<object?>)eq1).SequenceEqual((List<object?>)eq2).ToStackEntry());
+					}
+					else
+					{
+						stack.Push((eq1 ?? false).Equals(eq2).ToStackEntry());
+					}
 					break;
 				case Opcode.OP_NEQ:
-					var neq1 = getEntryValue<object?>(stack.Pop());
-					var neq2 = getEntryValue<object?>(stack.Pop());
+					var neq1 = GetEntryValue<object?>(stack.Pop());
+					var neq2 = GetEntryValue<object?>(stack.Pop());
 					stack.Push((!(neq1 ?? false).Equals(neq2)).ToStackEntry());
 					break;
 				case Opcode.OP_LT:
-					var ltA = getEntryValue<double>(stack.Pop());
-					var ltB = getEntryValue<double>(stack.Pop());
+					var ltA = GetEntryValue<double>(stack.Pop());
+					var ltB = GetEntryValue<double>(stack.Pop());
 					stack.Push((ltB < ltA).ToStackEntry());
 					break;
 				case Opcode.OP_GT:
-					var gtA = getEntryValue<double>(stack.Pop());
-					var gtB = getEntryValue<double>(stack.Pop());
+					var gtA = GetEntryValue<double>(stack.Pop());
+					var gtB = GetEntryValue<double>(stack.Pop());
 					stack.Push((gtB > gtA).ToStackEntry());
 					break;
 				case Opcode.OP_LTE:
-					var lteA = getEntryValue<double>(stack.Pop());
-					var lteB = getEntryValue<double>(stack.Pop());
+					var lteA = GetEntryValue<double>(stack.Pop());
+					var lteB = GetEntryValue<double>(stack.Pop());
 					stack.Push((lteB <= lteA).ToStackEntry());
 					break;
 				case Opcode.OP_GTE:
-					var gteA = getEntryValue<double>(stack.Pop());
-					var gteB = getEntryValue<double>(stack.Pop());
+					var gteA = GetEntryValue<double>(stack.Pop());
+					var gteB = GetEntryValue<double>(stack.Pop());
 					stack.Push((gteB >= gteA).ToStackEntry());
 					break;
 				case Opcode.OP_BWO:
@@ -539,15 +610,15 @@ public class ScriptMachine
 					break;
 				case Opcode.OP_FORMAT:
 					var format  = stack.Pop();
-					var objects = stack.Select(x => getEntryValue<object>(x)).ToArray();
+					var objects = stack.Select(x => GetEntryValue<object>(x)).ToArray();
 					stack.Clear();
-					var formatted = Tools.Format(getEntryValue<TString>(format) ?? "", objects);
+					var formatted = Tools.Format(GetEntryValue<TString>(format) ?? "", objects);
 					stack.Push(formatted.ToStackEntry());
 					break;
 				case Opcode.OP_INT:
 					break;
 				case Opcode.OP_ABS:
-					stack.Push(Math.Abs(getEntryValue<double>(stack.Pop())).ToStackEntry());
+					stack.Push(Math.Abs(GetEntryValue<double>(stack.Pop())).ToStackEntry());
 					break;
 				case Opcode.OP_RANDOM:
 					break;
@@ -570,8 +641,24 @@ public class ScriptMachine
 				case Opcode.OP_GETDIR:
 					break;
 				case Opcode.OP_VECX:
+					var vecxDir = (int)stack.Pop().GetValue<double>();
+					var vecxVal = vecxDir switch
+					{
+						1 => -1,
+						3 => 1,
+						_ => 0,
+					};
+					stack.Push(vecxVal.ToStackEntry());
 					break;
 				case Opcode.OP_VECY:
+					var vecyDir = (int)stack.Pop().GetValue<double>();
+					var vecyVal = vecyDir switch
+					{
+						0 => -1,
+						2 => 1,
+						_ => 0,
+					};
+					stack.Push(vecyVal.ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_INDICES:
 					break;
@@ -586,8 +673,8 @@ public class ScriptMachine
 				case Opcode.OP_OBJ_POS:
 					break;
 				case Opcode.OP_JOIN:
-					var joinA = getEntryValue<TString>(stack.Pop());
-					var joinB = getEntryValue<TString>(stack.Pop());
+					var joinA = GetEntryValue<TString>(stack.Pop());
+					var joinB = GetEntryValue<TString>(stack.Pop());
 					stack.Push($"{joinB}{joinA}".ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_CHARAT:
@@ -595,8 +682,8 @@ public class ScriptMachine
 				case Opcode.OP_OBJ_SUBSTR:
 					break;
 				case Opcode.OP_OBJ_STARTS:
-					var obj        = getEntryValue<TString>(stack.Pop()) ?? "";
-					var startsWith = getEntryValue<TString>(stack.Pop()) ?? "";
+					var obj        = GetEntryValue<TString>(stack.Pop()) ?? "";
+					var startsWith = GetEntryValue<TString>(stack.Pop()) ?? "";
 					stack.Push(
 						obj.StartsWith(startsWith, StringComparison.CurrentCultureIgnoreCase).ToStackEntry()
 					);
@@ -623,8 +710,8 @@ public class ScriptMachine
 
 					break;
 				case Opcode.OP_ARRAY:
-					var arrayIndex = getEntryValue<double>(stack.Pop());
-					var array      = getEntryValue<object>(stack.Pop());
+					var arrayIndex = GetEntryValue<double>(stack.Pop());
+					var array      = GetEntryValue<object>(stack.Pop());
 
 					if (array?.GetType() == typeof(List<string>))
 						stack.Push(
@@ -706,9 +793,10 @@ public class ScriptMachine
 
 					break;
 				case Opcode.OP_THIS:
-					stack.Push(new StackEntry(StackEntryType.Array, Script.GlobalVariables));
+					stack.Push(_script.ToStackEntry());
 					break;
 				case Opcode.OP_THISO:
+					stack.Push(_script.ToStackEntry());
 					break;
 				case Opcode.OP_PLAYER:
 					stack.Push(
@@ -758,35 +846,57 @@ public class ScriptMachine
 		throw new ScriptException($"Missing Class: {className}");
 	}
 
-	public IStackEntry GetEntry(IStackEntry stackEntry, StackEntryType? overrideStackType = null)
+	public IStackEntry GetEntry(IStackEntry stackEntry, StackEntryType? overrideStackType = null, bool returnStackEntryIfNotFound = false)
 	{
-		StackEntryType? type = overrideStackType ?? stackEntry.Type;
+		StackEntryType? type          = overrideStackType ?? stackEntry.Type;
+		var             retVal        = stackEntry;
+		var             foundVariable = false;
 		switch (type)
 		{
 			case Variable
 				when _tempVariables.ContainsVariable(stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty):
 				_useTemp = false;
-				return _tempVariables.GetVariable(stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty);
-			case Variable
-				when _script.RefObject != null && _script.RefObject.ContainsVariable(stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty):
-				return _script.RefObject[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty];
+				retVal = _tempVariables.GetVariable(stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty);
+				foundVariable = true;
+				break;
+			case Variable when _script.RefObject != null &&
+			                   _script.RefObject.ContainsVariable(
+				                   stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty
+			                   ):
+				retVal        = _script.RefObject[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty];
+				foundVariable = true;
+				break;
 			case Variable
 				when Script.GlobalVariables.ContainsVariable(
 					stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty
 				):
-				return Script.GlobalVariables[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty];
+				retVal        = Script.GlobalVariables[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty];
+				foundVariable = true;
+				break;
 			case Variable when Script.GlobalObjects.ContainsKey(
 				stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty
 			):
-				return Script.GlobalObjects[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty]
-				             .ToStackEntry();
+				retVal = Script.GlobalObjects[stackEntry.GetValue()?.ToString()?.ToLower() ?? string.Empty]
+				               .ToStackEntry();
+				foundVariable = true;
+				break;
 			default:
-				return stackEntry;
+				break;
 		}
+
+		if (type is Variable && !foundVariable && !returnStackEntryIfNotFound)
+		{
+			Tools.DebugLine(
+				$"GetEntry, Type: {type}, FoundVariable: {foundVariable}, StackEntry: {stackEntry.GetValue()}, ReturnStackEntryIfNotFound: {returnStackEntryIfNotFound}"
+			);
+			retVal = 0.ToStackEntry();
+		}
+
+		return retVal;
 	}
 
-	private T? getEntryValue<T>(IStackEntry stackEntry, StackEntryType? overrideStackType = null) =>
-		(T?)GetEntry(stackEntry, overrideStackType).GetValue();
+	private T? GetEntryValue<T>(IStackEntry stackEntry, StackEntryType? overrideStackType = null, bool returnStackEntryIfNotFound = false) =>
+		(T?)GetEntry(stackEntry, overrideStackType, returnStackEntryIfNotFound).GetValue();
 
 	public void Reset()
 	{

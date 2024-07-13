@@ -116,7 +116,7 @@ public class StackEntryExtensionsTests
 	public void When_input_is_int_array_Then_return_StackEntry_with_type_array_and_value_type_List_int()
 	{
 		//Arrange
-		int[] val = {1,2};
+		int[] val = [1,2];
 
 		//Act
 		var test = val.ToStackEntry();
@@ -196,7 +196,7 @@ public class StackEntryExtensionsTests
 		//Act
 		//Assert
 		var exception = Assert.Throws<ArgumentOutOfRangeException>(() => val.ToStackEntry());
-		Assert.Equal("Specified argument was out of the range of valid values.", exception.Message);
+		Assert.Equal("Specified argument was out of the range of valid values. (Parameter 'stackObject')", exception.Message);
 	}
 
 	[Fact]

@@ -4,6 +4,8 @@ using System.Text.RegularExpressions;
 
 namespace GS2Engine;
 
+public delegate void DebugFunc(string? args);
+
 public static class Tools
 {
 	#region Public Methods
@@ -160,15 +162,29 @@ public static class Tools
 	// ReSharper disable once MemberCanBePrivate.Global
 	public static bool DEBUG_ON { get; set; } = false;
 
+	private static DebugFunc? DebugFuncWrite;
+	private static DebugFunc? DebugFuncWriteLine;
+
+	public static void SetDebugFuncWrite(DebugFunc debugFunc) => DebugFuncWrite = debugFunc;
+	public static void SetDebugFuncWriteLine(DebugFunc debugFunc) => DebugFuncWriteLine = debugFunc;
+
 	public static void Debug(string? text)
 	{
-		if (DEBUG_ON)
+		if (!DEBUG_ON) return;
+
+		if (DebugFuncWrite != null)
+			DebugFuncWrite(text);
+		else
 			Console.Write(text);
 	}
 
 	public static void DebugLine(string? text)
 	{
-		if (DEBUG_ON)
+		if (!DEBUG_ON) return;
+
+		if (DebugFuncWriteLine != null)
+			DebugFuncWriteLine(text);
+		else
 			Console.WriteLine(text);
 	}
 

@@ -492,11 +492,14 @@ public class ScriptMachine
 						var funcParam = stack.Pop();
 						try
 						{
-							var funcParamVal = callStack?.Pop();
-							_tempVariables.AddOrUpdate(
-								(funcParam.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty,
-								funcParamVal ?? 0.ToStackEntry()
-							);
+							if (callStack is { Count: > 0 })
+							{
+								var funcParamVal = callStack.Pop();
+								_tempVariables.AddOrUpdate(
+									(funcParam.GetValue() ?? "").ToString()?.ToLower() ?? string.Empty,
+									funcParamVal ?? 0.ToStackEntry()
+								);
+							}
 						}
 						catch (Exception e)
 						{

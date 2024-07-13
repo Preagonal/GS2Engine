@@ -94,10 +94,9 @@ public class Script : VariableCollection
 		Init();
 	}
 
-	public void HaltExecution()
-	{
-		_executionEnabled = false;
-	}
+	public void HaltExecution() => _executionEnabled = false;
+
+	public void EnableExecution() => _executionEnabled = true;
 
 	private void Init()
 	{
@@ -113,6 +112,8 @@ public class Script : VariableCollection
 				return 0.ToStackEntry();
 			}
 		);
+
+		EnableExecution();
 	}
 
 	private void Reset()
@@ -122,6 +123,8 @@ public class Script : VariableCollection
 		ExternalFunctions?.Clear();
 		_bytecode = [];
 		_strings.Clear();
+		Clear();
+		HaltExecution();
 	}
 
 	private void SetStream(TString bytecodeParam)
@@ -485,7 +488,7 @@ public class Script : VariableCollection
 
 	private static void DelayedMethodCall(double seconds, Action methodToCall)
 	{
-		Thread.Sleep((int)(seconds * 1000));  // Convert seconds to milliseconds
+		Thread.Sleep((int)(seconds * 1500));  // Convert seconds to milliseconds
 		methodToCall();
 	}
 

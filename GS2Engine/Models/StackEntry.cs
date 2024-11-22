@@ -57,7 +57,7 @@ public class StackEntry : IStackEntry
 				value = (TString)(Value?.ToString() ?? "");
 			}
 
-			value = (T?)Value;;
+			value = (T?)Value;
 
 			return true;
 		}

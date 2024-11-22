@@ -106,7 +106,7 @@ def buildStepDocker() {
 					} catch(err) {
 						currentBuild.result = 'FAILURE'
 						sh("chmod 777 -R .");
-						discordSend description: "Testing Failed: ${fixed_job_name} #${env.BUILD_NUMBER} DockerImage: ${DOCKERIMAGE} (<${env.BUILD_URL}|Open>)", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK
+						discordSend(description: "Testing Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK);
 						notify('Build failed')
 					}
 
@@ -157,7 +157,7 @@ def buildStepDocker() {
 		customImage.inside("-u 0") {
 			sh("chmod 777 -R .");
 		}
-		discordSend description: "", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK
+		discordSend(description: "", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK);
 
 		notify("Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}");
 		sh("rm -rf ./*");

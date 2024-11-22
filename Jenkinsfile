@@ -18,15 +18,15 @@ def killall_jobs() {
 	def buildnum = env.BUILD_NUMBER.toInteger();
 	def killnums = "";
 	def job = Jenkins.instance.getItemByFullName(jobname);
-	def fixed_job_name = env.JOB_NAME.replace('%2F','/');
 	def split_job_name = env.JOB_NAME.split(/\/{1}/);
+	def fixed_job_name = split_job_name[1].replace('%2F',' ');
 
 	for (build in job.builds) {
 		if (!build.isBuilding()) { continue; }
 		if (buildnum == build.getNumber().toInteger()) { continue; println "equals"; }
 		if (buildnum < build.getNumber().toInteger()) { continue; println "newer"; }
 
-		echo "Kill task = ${build}";
+		echo("Kill task = ${build}");
 
 		killnums += "#" + build.getNumber().toInteger() + ", ";
 
@@ -34,20 +34,20 @@ def killall_jobs() {
 	}
 
 	if (killnums != "") {
-		discordSend description: "in favor of #${buildnum}, ignore following failed builds for ${killnums}", footer: "", link: env.BUILD_URL, result: "ABORTED", title: "[${split_job_name[0]}] Killing task(s) ${fixed_job_name} ${killnums}", webhookURL: env.GS2EMU_WEBHOOK;
+		discordSend(description: "in favor of #${buildnum}, ignore following failed builds for ${killnums}", footer: "", link: env.BUILD_URL, result: "ABORTED", title: "[${split_job_name[0]}] Killing task(s) ${fixed_job_name} ${killnums}", webhookURL: env.GS2EMU_WEBHOOK);
 	}
-	echo "Done killing"
+	echo("Done killing");
 }
 
 def buildStepDocker() {
 	def split_job_name = env.JOB_NAME.split(/\/{1}/);
 	def fixed_job_name = split_job_name[1].replace('%2F',' ');
 
-	def customImage = docker.image("mcr.microsoft.com/dotnet/sdk:8.0");
+	def customImage = docker.image("mcr.microsoft.com/dotnet/sdk:9.0");
 	customImage.pull();
 
 	try {
-		checkout scm;
+		checkout(scm);
 
 		def buildenv = "";
 		def tag = '';
@@ -151,6 +151,7 @@ def buildStepDocker() {
 				}
 			}
 		}
+		sh("rm -rf ./*");
 	} catch(err) {
 		currentBuild.result = 'FAILURE'
 		customImage.inside("-u 0") {
@@ -158,7 +159,8 @@ def buildStepDocker() {
 		}
 		discordSend description: "", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK
 
-		notify("Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}")
+		notify("Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}");
+		sh("rm -rf ./*");
 		throw err
 	}
 }
@@ -172,7 +174,7 @@ node('master') {
 	env.COMMIT_MSG = sh(
 		script: 'git log -1 --pretty=%B ${GIT_COMMIT}',
 		returnStdout: true
-	).trim();
+	).trim().replace("'", "");
 
 	env.GIT_COMMIT = sh(
 		script: 'git log -1 --pretty=%H ${GIT_COMMIT}',
@@ -182,7 +184,7 @@ node('master') {
 	sh('git fetch --tags');
 
 	env.LATEST_TAG = sh(
-		script: 'git tag -l | tail -1',
+		script: 'git tag --sort=creatordate -l | tail -1',
 		returnStdout: true
 	).trim();
 
@@ -208,7 +210,6 @@ node('master') {
 		versionChanged = true;
 	}
 
-
 	if (versionChanged) {
 		withCredentials([string(credentialsId: 'PREAGONAL_GITHUB_TOKEN', variable: 'GITHUB_TOKEN')]) {
 			def tagName = "${verMajor}.${verMinor}.${verPatch}";
@@ -231,21 +232,22 @@ node('master') {
 		}
 	}
 
-
-	discordSend description: "${env.COMMIT_MSG}", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Started: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK
+	discordSend(description: "${env.COMMIT_MSG}", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Started: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK);
 
 	if (env.TAG_NAME) {
 		sh(returnStdout: true, script: "echo '```' > RELEASE_DESCRIPTION.txt");
 		env.RELEASE_DESCRIPTION = sh(returnStdout: true, script: "git tag -l --format='%(contents)' ${env.TAG_NAME} >> RELEASE_DESCRIPTION.txt");
 		sh(returnStdout: true, script: "echo '```' >> RELEASE_DESCRIPTION.txt");
 	}
+
 	node("linux") {
 		buildStepDocker();
 	}
 
 	if (env.TAG_NAME) {
 		def DESC = sh(returnStdout: true, script: 'cat RELEASE_DESCRIPTION.txt');
-		discordSend description: "${DESC}", customUsername: "OpenGraal", customAvatarUrl: "https://pbs.twimg.com/profile_images/1895028712/13460_106738052711614_100001262603030_51047_4149060_n_400x400.jpg", footer: "OpenGraal Team", link: "https://github.com/Preagonal/GS2Engine/pkgs/nuget/GS2Engine", result: "SUCCESS", title: "GS2Engine v${env.TAG_NAME} NuGet Package", webhookURL: env.GS2EMU_RELEASE_WEBHOOK;
+		discordSend(description: "${DESC}", customUsername: "OpenGraal", customAvatarUrl: "https://pbs.twimg.com/profile_images/1895028712/13460_106738052711614_100001262603030_51047_4149060_n_400x400.jpg", footer: "OpenGraal Team", link: "https://github.com/Preagonal/GS2Engine/pkgs/nuget/GS2Engine", result: "SUCCESS", title: "GS2Engine v${env.TAG_NAME} NuGet Package", webhookURL: env.GS2EMU_RELEASE_WEBHOOK);
 	}
-	sh "rm -rf ./*"
+
+	sh("rm -rf ./*");
 }

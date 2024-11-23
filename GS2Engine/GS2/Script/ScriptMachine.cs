@@ -396,7 +396,7 @@ public class ScriptMachine
 					break;
 				case Opcode.OP_ARRAY_END:
 
-					List<object> stackArr = new();
+					List<object> stackArr = [];
 					//keep popping the stack till we hit an array start
 					while (stack.Count > 0 && stack.Peek().Type != ArrayStart)
 						stackArr.Add(GetEntry(stack.Pop())?.GetValue() ?? 0.ToStackEntry());
@@ -623,10 +623,19 @@ public class ScriptMachine
 				case Opcode.OP_RANDOM:
 					break;
 				case Opcode.OP_SIN:
+					var sinVal = Math.Sin(GetEntryValue<double>(stack.Pop()));
+					sinVal = Math.Abs(sinVal) < 0.000001 ? 0.0f : sinVal;
+					stack.Push(sinVal.ToStackEntry());
 					break;
 				case Opcode.OP_COS:
+					var cosVal = Math.Cos(GetEntryValue<double>(stack.Pop()));
+					cosVal = Math.Abs(cosVal) < 0.000001 ? 0.0f : cosVal;
+					stack.Push(cosVal.ToStackEntry());
 					break;
 				case Opcode.OP_ARCTAN:
+					var atanVal = Math.Atan(GetEntryValue<double>(stack.Pop()));
+					atanVal = Math.Abs(atanVal) < 0.000001 ? 0.0f : atanVal;
+					stack.Push(atanVal.ToStackEntry());
 					break;
 				case Opcode.OP_EXP:
 					break;
@@ -642,7 +651,7 @@ public class ScriptMachine
 					break;
 				case Opcode.OP_VECX:
 					var vecxDir = (int)stack.Pop().GetValue<double>();
-					var vecxVal = vecxDir switch
+					var vecxVal = (vecxDir % 4) switch
 					{
 						1 => -1,
 						3 => 1,
@@ -652,7 +661,7 @@ public class ScriptMachine
 					break;
 				case Opcode.OP_VECY:
 					var vecyDir = (int)stack.Pop().GetValue<double>();
-					var vecyVal = vecyDir switch
+					var vecyVal = (vecyDir % 4) switch
 					{
 						0 => -1,
 						2 => 1,

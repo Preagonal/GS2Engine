@@ -5,7 +5,7 @@
 		<Nullable>enable</Nullable>
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 		<LangVersion>latest</LangVersion>
-		<TargetFramework>net7.0</TargetFramework>
+		<TargetFrameworks>net8.0;net9.0</TargetFrameworks>
 		<Title>GS2Engine</Title>
 		<Authors>Preagonal</Authors>
 		<Copyright>Preagonal 2023</Copyright>

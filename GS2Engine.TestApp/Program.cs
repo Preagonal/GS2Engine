@@ -4,6 +4,7 @@ using GS2Engine.Extensions;
 using GS2Engine.GS2.Script;
 using GS2Engine.Models;
 using GS2Engine.TestApp.Objects;
+using Xunit;
 using static GS2Engine.GS2.Script.Script;
 
 namespace GS2Engine.TestApp;
@@ -12,7 +13,6 @@ internal static class Program
 {
 	private static async Task Main(string[] args)
 	{
-		Tools.DEBUG_ON = true;
 		/*
 	HashSet<Script> scripts = new();
 	foreach (string file in Directory.GetFiles($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}{Path.DirectorySeparatorChar}scripts"))
@@ -28,13 +28,22 @@ internal static class Program
 		Thread.Sleep(10);
 	}
 	*/
+		var calledTimes = 0;
+		var receivedStrings = new Dictionary<int, string>();
 		var path = $"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}{Path.DirectorySeparatorChar}scripts/test.gs2bc";
 		Command echoCommand = delegate (ScriptMachine machine, IStackEntry[]? args)
 		{
-			if (args?.Length > 0)
-				Console.WriteLine(machine.GetEntry(args[0]).GetValue() ?? "");
+			if (!(args?.Length > 0)) return 0.ToStackEntry();
+
+			receivedStrings[calledTimes] = machine.GetEntry(args[0]).GetValue()?.ToString() ?? "";
+
+			Console.WriteLine(receivedStrings[calledTimes]);
+
+			calledTimes++;
+
 			return 0.ToStackEntry();
 		};
+
 		GlobalFunctions.AddOrUpdate(
 			"echo",
 			echoCommand,
@@ -45,52 +54,32 @@ internal static class Program
 
 		Command showimgCommand = delegate(ScriptMachine machine, IStackEntry[]? args)
 		{
-			if (args?.Length > 3)
-				try
-				{
-					var     index = (int)machine.GetEntry(args[0]).GetValue<double>();
-					string? image = machine.GetEntry(args[1]).GetValue<TString>() ?? string.Empty;
+			if (!(args?.Length > 3)) return 0.ToStackEntry();
 
-					var x = (int)machine.GetEntry(args[2]).GetValue<double>();
-					var y = (int)machine.GetEntry(args[3]).GetValue<double>();
-					if (Drawings.TryGetValue(index, out var value))
-					{
-						value?.ShowImg(image, x, y);
-					}
-					else
-					{
-						value = new(image, x, y);
-						Drawings.AddOrUpdate(index, value, (_, _) => value);
-					}
-				}
-				catch (Exception e)
+			try
+			{
+				var     index = (int)machine.GetEntry(args[0]).GetValue<double>();
+				string? image = machine.GetEntry(args[1]).GetValue<TString>() ?? string.Empty;
+
+				var x = (int)machine.GetEntry(args[2]).GetValue<double>();
+				var y = (int)machine.GetEntry(args[3]).GetValue<double>();
+				if (Drawings.TryGetValue(index, out var value))
 				{
-					//_logger.LogDebug(e.Message);
+					value?.ShowImg(image, x, y);
 				}
+				else
+				{
+					value = new(image, x, y);
+					Drawings.AddOrUpdate(index, value, (_, _) => value);
+				}
+			}
+			catch (Exception e)
+			{
+				//_logger.LogDebug(e.Message);
+			}
 
 			return 0.ToStackEntry();
 		};
-
-		Command findimgCommand = delegate(ScriptMachine machine, IStackEntry[]? args)
-		{
-			if (args?.Length > 0)
-				try
-				{
-					var index = (int)machine.GetEntry(args[0]).GetValue<double>();
-
-					if (Drawings.TryGetValue(index, out var value))
-					{
-						return value!.ToStackEntry();
-					}
-				}
-				catch (Exception e)
-				{
-					//_logger.LogDebug(e.Message);
-				}
-
-			return 0.ToStackEntry();
-		};
-
 
 		GlobalFunctions.AddOrUpdate(
 			"showimg",
@@ -98,21 +87,90 @@ internal static class Program
 			(_, _) => showimgCommand
 		);
 
+		Command findimgCommand = delegate(ScriptMachine machine, IStackEntry[]? args)
+		{
+			if (!(args?.Length > 0)) return 0.ToStackEntry();
+
+			try
+			{
+				var index = (int)machine.GetEntry(args[0]).GetValue<double>();
+
+				if (Drawings.TryGetValue(index, out var value))
+				{
+					return value!.ToStackEntry();
+				}
+			}
+			catch (Exception e)
+			{
+				//_logger.LogDebug(e.Message);
+			}
+
+			return 0.ToStackEntry();
+		};
+
 		GlobalFunctions.AddOrUpdate(
 			"findimg",
 			findimgCommand,
 			(_, _) => findimgCommand
 		);
 
-		var scriptText = """
+		Command getimgwidth = delegate(ScriptMachine machine, IStackEntry[]? args)
+		{
+			if (!(args?.Length > 0)) return 0.ToStackEntry();
 
-		                 //#CLIENTSIDE
-		                 function onCreated() {
+			try
+			{
+				var image = machine.GetEntry(args[0]).GetValue<TString>();
 
-		                 }
-		                 		
-		                 """;
-		var response = Gs2Compiler.CompileCode(
+				Console.WriteLine(image);
+
+				return 1!.ToStackEntry();
+
+			}
+			catch (Exception e)
+			{
+				//_logger.LogDebug(e.Message);
+			}
+
+			return 0.ToStackEntry();
+		};
+
+		GlobalFunctions.AddOrUpdate(
+			"getimgwidth",
+			getimgwidth,
+			(_, _) => getimgwidth
+		);
+
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							this.i = 0;
+							setTimer(0.01);
+						}
+						
+						function onTimeout() {
+							echo(this.i);
+							Main();
+							
+							this.i++;
+							
+							if (this.i < 3500) {
+								setTimer(0.01);
+							}
+						}
+						
+						function Main() {
+							Movement();
+						}
+						
+						function Movement() {
+							for (temp.k=0;temp.k<4;temp.k++) {
+								echo("temp.k:" SPC temp.k);
+							}
+						}
+			""";
+		var response = GS2Compiler.Interface.CompileCode(
 			scriptText,
 			"weapon",
 			"testScript"
@@ -120,9 +178,24 @@ internal static class Program
 
 		if (response.Success)
 		{
+			Tools.DEBUG_ON = false;
+
+			// Arrange
 			var script = new Script("testScript", response.ByteCode);
 
+			// Act
 			await script.Call("onCreated");
+
+			// Assert
+			while (true)
+			{
+				if (!(script.GetVariable("i").GetValue<double>() >= 3000)) continue;
+
+				Assert.Equal(8, calledTimes);
+				break;
+			}
+
+
 			await script.Call("myFunction", "test", 1, true);
 			await script.Call("myFunction", "test", 1, false);
 			await script.Call(

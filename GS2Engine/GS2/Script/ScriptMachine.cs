@@ -267,7 +267,6 @@ public class ScriptMachine
 				case Opcode.OP_TYPE_ARRAY:
 					stack.Push(new StackEntry(ArrayStart, null));
 					break;
-
 				case Opcode.OP_TYPE_TRUE:
 					stack.Push(true.ToStackEntry());
 					break;
@@ -424,7 +423,6 @@ public class ScriptMachine
 							stack.Push(inlineNew.GetValue().ToStackEntry(true));
 						}
 					}
-
 					break;
 				case Opcode.OP_MAKEVAR:
 					break;
@@ -447,22 +445,19 @@ public class ScriptMachine
 
 					break;
 				case Opcode.OP_INLINE_CONDITIONAL:
-					/*
+
 					var inlineConditional = stack.Pop();
 					if (inlineConditional.GetValue<bool>() != false) {
 						inlineConditional.SetValue(1.0d);
 					}
 					stack.Push(inlineConditional);
-					*/
+
 					break;
 				case Opcode.OP_ASSIGN:
 					var val      = stack.Pop();
-					var variable = (stack.Count == 0 ? opCopy : GetEntry(stack.Pop())) ?? 0.ToStackEntry();
-					if (variable.Type != Variable /*StackEntryType.String or Number val.Type*/)
-					{
-						variable.SetValue(GetEntry(val).GetValue());
-					}
-					else if (opWith is { Count: not 0 })
+					var variable = (stack.Count == 0 ? opCopy : /*GetEntry*/(stack.Pop())) ?? 0.ToStackEntry();
+
+					if (opWith is { Count: not 0 })
 					{
 						try
 						{
@@ -474,6 +469,10 @@ public class ScriptMachine
 						{
 							Tools.DebugLine(e.Message);
 						}
+					}
+					else if (variable.Type != Variable /*StackEntryType.String or Number val.Type*/)
+					{
+						variable.SetValue(GetEntry(val).GetValue());
 					}
 					else if (!_useTemp)
 					{
@@ -563,13 +562,10 @@ public class ScriptMachine
 					var eq1 = GetEntryValue<object?>(stack.Pop());
 					var eq2 = GetEntryValue<object?>(stack.Pop());
 					if (eq1 is IList && eq1.GetType().IsGenericType && eq2 is IList && eq2.GetType().IsGenericType)
-					{
 						stack.Push(((List<object?>)eq1).SequenceEqual((List<object?>)eq2).ToStackEntry());
-					}
 					else
-					{
 						stack.Push((eq1 ?? false).Equals(eq2).ToStackEntry());
-					}
+
 					break;
 				case Opcode.OP_NEQ:
 					var neq1 = GetEntryValue<object?>(stack.Pop());

@@ -5,10 +5,10 @@ namespace GS2Engine.Models;
 
 public class VariableCollection
 {
-	public delegate void VariableCollectionCallback(object? value);
+	public delegate void    VariableCollectionSetCallback(object? value);
+	public delegate object? VariableCollectionGetCallback();
 
 	private readonly Dictionary<string, IStackEntry>                _collection = new();
-	private readonly Dictionary<string, VariableCollectionCallback> _callbacks  = new();
 
 	public VariableCollection()
 	{
@@ -39,12 +39,20 @@ public class VariableCollection
 		return _collection[variable];
 	}
 
-	protected void SetCallback(TString variable, VariableCollectionCallback callback)
+	protected void SetCallback(TString variable, VariableCollectionSetCallback setCallback)
 	{
 		if (!ContainsVariable(variable))
 			_collection.Add(variable, 0.ToStackEntry());
 
-		_collection[variable].SetCallback(callback);
+		_collection[variable].SetCallback(setCallback);
+	}
+
+	protected void GetCallback(TString variable, VariableCollectionGetCallback getCallback)
+	{
+		if (!ContainsVariable(variable))
+			_collection.Add(variable, 0.ToStackEntry());
+
+		_collection[variable].GetCallback(getCallback);
 	}
 
 	public IStackEntry SetVariable(TString variable, IStackEntry value) => AddOrUpdate(variable, value);

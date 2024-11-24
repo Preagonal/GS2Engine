@@ -11,10 +11,11 @@ public class StackEntry : IStackEntry
 		Value = value;
 	}
 
-	private object?                                        Value      { get; set; }
-	private VariableCollection.VariableCollectionCallback? Callback   { get; set; }
-	public  StackEntryType                                 Type       { get; private set; }
-	public  object?                                        GetValue() => Value;
+	private object?                                           Value          { get; set; }
+	private VariableCollection.VariableCollectionSetCallback? SetterCallback { get; set; }
+	private VariableCollection.VariableCollectionGetCallback? GetterCallback { get; set; }
+	public  StackEntryType                                    Type           { get; private set; }
+	public  object?                                           GetValue()     => Value;
 
 	public T1? GetValue<T1>()
 	{
@@ -30,7 +31,11 @@ public class StackEntry : IStackEntry
 	{
 		try
 		{
-			if (Value?.GetType() == typeof(T))
+			if (GetterCallback != null)
+			{
+				value = GetterCallback();
+			}
+			else if (Value?.GetType() == typeof(T))
 			{
 				value = (T)Value;
 			}
@@ -69,10 +74,9 @@ public class StackEntry : IStackEntry
 		}
 	}
 
-	public void SetCallback(VariableCollection.VariableCollectionCallback callback)
-	{
-		Callback = callback;
-	}
+	public void SetCallback(VariableCollection.VariableCollectionSetCallback setCallback) => SetterCallback = setCallback;
+
+	public void GetCallback(VariableCollection.VariableCollectionGetCallback getCallback) => GetterCallback = getCallback;
 
 	public void SetValue(object? value, bool skipCallback = false)
 	{
@@ -101,7 +105,7 @@ public class StackEntry : IStackEntry
 			_        => StackEntryType.Array,
 		};
 
-		if (Callback != null && !skipCallback)
-			Callback(value);
+		if (SetterCallback != null && !skipCallback)
+			SetterCallback(value);
 	}
 }

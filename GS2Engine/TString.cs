@@ -65,7 +65,17 @@ public class TString
 	public static implicit operator string(TString d)  => Encoding.ASCII.GetString(d.buffer);
 	public static implicit operator TString(string b) => new(b);
 	public static implicit operator TString(byte[] b)  => new(b);
-
+	public static bool operator ==(TString? obj1, TString? obj2)
+	{
+		if (ReferenceEquals(obj1, obj2))
+			return true;
+		if (ReferenceEquals(obj1, null))
+			return false;
+		if (ReferenceEquals(obj2, null))
+			return false;
+		return obj1.Equals(obj2);
+	}
+	public static bool operator !=(TString? obj1, TString? obj2) => !(obj1 == obj2);
 	public static TString operator +(TString a, TString b)
 	{
 		a.AddBuffer(b.buffer, 0, b.length());
@@ -166,7 +176,14 @@ public class TString
 
 	public override string ToString() => Encoding.ASCII.GetString(buffer);
 
-	public bool Equals(TString compare) => ToString() == compare.ToString();
+	private         bool Equals(TString? compare) => ToString() == compare?.ToString();
+	public override bool Equals(object? obj)
+	{
+		if (obj == null || GetType() != obj.GetType()) return false;
+		return Equals((TString?)obj);
+	}
+
+	public override int  GetHashCode()            => ToString().GetHashCode();
 
 	public bool StartsWith(TString toString, StringComparison culture) =>
 		ToString().StartsWith(toString.ToString(), culture);

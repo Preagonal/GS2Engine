@@ -7,7 +7,8 @@ public interface IStackEntry
 	public StackEntryType Type { get; }
 	public object?        GetValue();
 	public T?             GetValue<T>();
-	void                  SetValue(object? getValue, bool skipCallback = false);
 	bool                  TryGetValue<T>(out object? value);
-	void                  SetCallback(VariableCollection.VariableCollectionCallback callback);
+	void                  SetValue(object? getValue, bool skipCallback = false);
+	void                  SetCallback(VariableCollection.VariableCollectionSetCallback setCallback);
+	void                  GetCallback(VariableCollection.VariableCollectionGetCallback getCallback);
 }

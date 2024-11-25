@@ -21,7 +21,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <PackageReference Include="GS2Compiler" Version="1.0.2" />
+	  <PackageReference Include="GS2Compiler" Version="1.1.4" />
 	  <PackageReference Include="NSubstitute" Version="5.1.0" />
 	</ItemGroup>
 

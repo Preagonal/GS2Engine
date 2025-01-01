@@ -81,7 +81,6 @@ def buildStepDocker() {
 			def release_type = ("${release_name}").replace('/','-').replace('GS2Engine-','').replace('main','').replace('dev','');
 
 			stage("Building NuGet Package") {
-
 				customImage.inside("-u 0") {
 					sh("chmod 777 -R .");
 					sh("dotnet pack GS2Engine/GS2Engine.csproj -c Release ${VER}");
@@ -102,6 +101,7 @@ def buildStepDocker() {
 				customImage.inside("-u 0") {
 					try{
 						sh("dotnet test --logger \"trx;LogFileName=../../Testing/unit_tests.xml\"");
+						sh("dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover");
 						sh("chmod 777 -R .");
 					} catch(err) {
 						currentBuild.result = 'FAILURE'
@@ -114,6 +114,11 @@ def buildStepDocker() {
 						artifacts: 'Testing/**.xml',
 						fingerprint: true
 					)
+
+					withCredentials([string(credentialsId: 'PREAGONAL_GS2ENGINE_CODECOV_TOKEN', variable: 'CODECOV_TOKEN')]) {
+					    sh("curl -s https://codecov.io/bash > codecov && chmod +x codecov && ./codecov -f \"Testing/unit_tests.xml\" -t ${env.CODECOV_TOKEN} && ./codecov -f \"GS2Engine.UnitTests/coverage.opencover.xml\" -t ${env.CODECOV_TOKEN}")
+					}
+
 					stage("Xunit") {
 						xunit (
 							testTimeMargin: '3000',
@@ -134,7 +139,6 @@ def buildStepDocker() {
 					}
 				}
 			}
-
 
 			if (env.TAG_NAME) {
 				stage("Pushing NuGet") {

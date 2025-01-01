@@ -20,4 +20,15 @@
 	  <ProjectReference Include="..\GS2Engine\GS2Engine.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <PackageReference Include="GS2Compiler" Version="1.1.4" />
+	  <PackageReference Include="NSubstitute" Version="5.3.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Reference Include="xunit.assert">
+	    <HintPath>..\..\..\..\..\.nuget\packages\xunit.assert\2.8.1\lib\net6.0\xunit.assert.dll</HintPath>
+	  </Reference>
+	</ItemGroup>
+
 </Project>

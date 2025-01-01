@@ -34,19 +34,21 @@ public class GuiControl : VariableCollection, IGuiControl, IDisposable
 			new Script.Command(
 				(m, a) =>
 				{
-					if (a?.Length > 0)
-					{
-						if (m.GetEntry(a[0], StackEntryType.Variable).TryGetValue<IGuiControl>(out var control))
-							AddControl((IGuiControl)control!);
-					}
+					if (!(a?.Length > 0)) return 0.ToStackEntry();
+					
+					var control = m.GetEntry(a[0], StackEntryType.Variable).GetValue<IGuiControl>();
+					if (control != null)
+						AddControl(control);
 
 					return 0.ToStackEntry();
 				}
 			).ToStackEntry()
 		);
 
-		SetCallback("extent", ExtentCallback);
-		SetCallback("clientextent", ClientExtentCallback);
+		SetCallback("extent", SetExtentCallback);
+		GetCallback("extent", GetExtentCallback);
+		SetCallback("clientextent", SetClientExtentCallback);
+		GetCallback("clientextent", GetClientExtentCallback);
 		SetCallback("position", PositionCallback);
 	}
 
@@ -258,7 +260,7 @@ public class GuiControl : VariableCollection, IGuiControl, IDisposable
 		}
 	}
 
-	protected void ClientExtentCallback(object? posVar)
+	protected void SetClientExtentCallback(object? posVar)
 	{
 		switch (posVar)
 		{
@@ -278,8 +280,9 @@ public class GuiControl : VariableCollection, IGuiControl, IDisposable
 			}
 		}
 	}
+	private object? GetClientExtentCallback() => $"{Width} {Height}";
 
-	protected void ExtentCallback(object? posVar)
+	protected void SetExtentCallback(object? posVar)
 	{
 		switch (posVar)
 		{
@@ -291,7 +294,7 @@ public class GuiControl : VariableCollection, IGuiControl, IDisposable
 			{
 				var positionString = posVarString.ToString();
 				if (positionString.Length <= 0) return;
-				string[] p = positionString.Split(' ');
+				var p = positionString.Split(' ');
 
 				if (double.TryParse(p[0], out var p0)) Width  = (int)p0;
 				if (double.TryParse(p[1], out var p1)) Height = (int)p1;
@@ -299,6 +302,8 @@ public class GuiControl : VariableCollection, IGuiControl, IDisposable
 			}
 		}
 	}
+
+	private object? GetExtentCallback() => $"{Width} {Height}";
 
 	protected void PositionCallback(object? posVar)
 	{

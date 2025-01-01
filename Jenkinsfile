@@ -81,7 +81,6 @@ def buildStepDocker() {
 			def release_type = ("${release_name}").replace('/','-').replace('GS2Engine-','').replace('main','').replace('dev','');
 
 			stage("Building NuGet Package") {
-
 				customImage.inside("-u 0") {
 					sh("chmod 777 -R .");
 					sh("dotnet pack GS2Engine/GS2Engine.csproj -c Release ${VER}");

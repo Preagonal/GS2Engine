@@ -114,6 +114,11 @@ def buildStepDocker() {
 						artifacts: 'Testing/**.xml',
 						fingerprint: true
 					)
+
+					withCredentials([string(credentialsId: 'PREAGONAL_GS2ENGINE_CODECOV_TOKEN', variable: 'CODECOV_TOKEN')]) {
+					    sh("curl -s https://codecov.io/bash > codecov && chmod +x codecov && ./codecov -f \"Testing/unit_tests.xml\" -t ${env.CODECOV_TOKEN}")
+					}
+
 					stage("Xunit") {
 						xunit (
 							testTimeMargin: '3000',

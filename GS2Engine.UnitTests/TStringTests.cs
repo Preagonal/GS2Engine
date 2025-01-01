@@ -56,6 +56,32 @@ public class TStringTests
 	}
 
 	[Fact]
+	public void When_removing_from_start_of_tstring_Then_value_is_correct()
+	{
+		//Arrange
+		TString string1 = "ASD123";
+
+		//Act
+		string1.removeStart(3);
+
+		//Assert
+		Assert.Equal("123", string1.ToString());
+	}
+
+	[Fact]
+	public void When_using_equals_Then_return_is_correct()
+	{
+		//Arrange
+		TString string1 = "ASD123";
+
+		//Act
+		//Assert
+		Assert.False(string1.Equals("ASD123"));
+		Assert.True(string1.Equals((TString)"ASD123"));
+		Assert.False(string1.Equals((TString)"ASD122"));
+	}
+
+	[Fact]
 	public void Given_equal_operator_When_comparing_tstring_Then_value_is_true()
 	{
 		//Arrange
@@ -67,13 +93,36 @@ public class TStringTests
 		Assert.True(string1 == string2);
 	}
 
-
 	[Fact]
 	public void Given_equal_operator_When_comparing_tstring_Then_value_is_false()
 	{
 		//Arrange
 		TString string1 = "ASD";
 		TString string2 = "asd";
+
+		//Act
+		//Assert
+		Assert.False(string1 == string2);
+	}
+
+	[Fact]
+	public void Given_equal_operator_When_comparing_tstring_with_null_Then_value_is_false()
+	{
+		//Arrange
+		TString string1 = "ASD";
+		TString? string2 = null;
+
+		//Act
+		//Assert
+		Assert.False(string1 == string2);
+	}
+
+	[Fact]
+	public void Given_equal_operator_When_comparing_tstring_with_null_again_Then_value_is_false()
+	{
+		//Arrange
+		TString? string1 = null;
+		TString? string2 = "ASD";
 
 		//Act
 		//Assert
@@ -115,6 +164,22 @@ public class TStringTests
 
 		//Assert
 		Assert.Equal(0, result);
+	}
+
+
+
+	[Fact]
+	public void Given_string_When_getting_hashcode_Then_value_is_always_the_same()
+	{
+		//Arrange
+		TString string1 = "asd123";
+
+		//Act
+		var result1 = string1.GetHashCode();
+		var result2 = string1.GetHashCode();
+
+		//Assert
+		Assert.Equal(result1, result2);
 	}
 
 	[Fact]

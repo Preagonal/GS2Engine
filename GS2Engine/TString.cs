@@ -183,7 +183,7 @@ public class TString
 		return Equals((TString?)obj);
 	}
 
-	public override int  GetHashCode()            => ToString().GetHashCode();
+	public override int  GetHashCode()            => HashCode.Combine(buffer.GetHashCode(), length());
 
 	public bool StartsWith(TString toString, StringComparison culture) =>
 		ToString().StartsWith(toString.ToString(), culture);

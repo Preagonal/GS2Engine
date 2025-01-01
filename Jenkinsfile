@@ -139,7 +139,6 @@ def buildStepDocker() {
 				}
 			}
 
-
 			if (env.TAG_NAME) {
 				stage("Pushing NuGet") {
 					customImage.inside("-u 0") {

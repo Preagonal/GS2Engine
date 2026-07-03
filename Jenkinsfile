@@ -99,11 +99,13 @@ def buildStepDocker() {
 
 			stage("Run tests...") {
 				customImage.inside("-u 0") {
+					def testFailure = null;
 					try{
 						sh("dotnet test --logger \"trx;LogFileName=../../Testing/unit_tests.xml\"");
 						sh("dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover");
 						sh("chmod 777 -R .");
 					} catch(err) {
+						testFailure = err;
 						currentBuild.result = 'FAILURE'
 						sh("chmod 777 -R .");
 						discordSend(description: "Testing Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Build Failed: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK);
@@ -116,7 +118,28 @@ def buildStepDocker() {
 					)
 
 					withCredentials([string(credentialsId: 'PREAGONAL_GS2ENGINE_CODECOV_TOKEN', variable: 'CODECOV_TOKEN')]) {
-					    sh("curl -s https://codecov.io/bash > codecov && chmod +x codecov && ./codecov -f \"Testing/unit_tests.xml\" -t ${env.CODECOV_TOKEN} && ./codecov -f \"Preagonal.Scripting.GS2Engine.UnitTests/coverage.opencover.xml\" -t ${env.CODECOV_TOKEN}")
+					    sh('''
+					    	curl -s https://codecov.io/bash > codecov
+					    	chmod +x codecov
+
+					    	if [ -f "Testing/unit_tests.xml" ]; then
+					    		set -- "$@" -f "Testing/unit_tests.xml"
+					    	else
+					    		echo "Test result file not found, skipping Codecov test result upload"
+					    	fi
+
+					    	if [ -f "Preagonal.Scripting.GS2Engine.UnitTests/coverage.opencover.xml" ]; then
+					    		set -- "$@" -f "Preagonal.Scripting.GS2Engine.UnitTests/coverage.opencover.xml"
+					    	else
+					    		echo "Coverage report not found, skipping Codecov coverage upload"
+					    	fi
+
+					    	if [ "$#" -gt 0 ]; then
+					    		./codecov "$@" -t "$CODECOV_TOKEN"
+					    	else
+					    		echo "No Codecov reports found, skipping upload"
+					    	fi
+					    ''')
 					}
 
 					stage("Xunit") {
@@ -137,6 +160,10 @@ def buildStepDocker() {
 							skipPublishingChecks: false
 						);
 					}
+
+					if (testFailure != null) {
+						throw testFailure;
+					}
 				}
 			}
 
@@ -144,11 +171,17 @@ def buildStepDocker() {
 				stage("Pushing NuGet") {
 					customImage.inside("-u 0") {
 						withCredentials([string(credentialsId: 'PREAGONAL_GITHUB_TOKEN', variable: 'GITHUB_TOKEN')]) {
-							sh("dotnet nuget push --skip-duplicate -s https://nuget.pkg.github.com/Preagonal/index.json -k ${env.GITHUB_TOKEN} Preagonal.Scripting.GS2Engine/bin/Release/*.nupkg;chmod 777 -R .");
+							sh('''
+								trap 'chmod 777 -R .' EXIT
+								dotnet nuget push --skip-duplicate -s https://nuget.pkg.github.com/Preagonal/index.json -k "$GITHUB_TOKEN" Preagonal.Scripting.GS2Engine/bin/Release/*.nupkg
+							''');
 							discordSend description: "NuGet Successful", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Artifact Successful: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK;
 						}
 						withCredentials([string(credentialsId: 'PREAGONAL_NUGET_TOKEN', variable: 'NUGET_TOKEN')]) {
-							sh("dotnet nuget push --skip-duplicate -s https://api.nuget.org/v3/index.json -k ${env.NUGET_TOKEN} Preagonal.Scripting.GS2Engine/bin/Release/*.nupkg;chmod 777 -R .");
+							sh('''
+								trap 'chmod 777 -R .' EXIT
+								dotnet nuget push --skip-duplicate -s https://api.nuget.org/v3/index.json -k "$NUGET_TOKEN" Preagonal.Scripting.GS2Engine/bin/Release/*.nupkg
+							''');
 							discordSend description: "NuGet Successful", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Artifact Successful: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK;
 						}
 					}

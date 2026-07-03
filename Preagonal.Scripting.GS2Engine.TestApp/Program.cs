@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Preagonal.Scripting.GS2Engine.GS2.Script;
 using Preagonal.Scripting.GS2Engine.TestApp.Objects;
 using Xunit;
@@ -183,7 +184,8 @@ internal static class Program
 			Tools.DEBUG_ON = false;
 
 			// Arrange
-			var script = new Script("testScript", response.ByteCode);
+			var scriptManager = new ScriptManager(NullLogger<ScriptManager>.Instance);
+			var script        = new Script(scriptManager, "testScript", response.ByteCode);
 
 			// Act
 			await script.Call("onCreated");

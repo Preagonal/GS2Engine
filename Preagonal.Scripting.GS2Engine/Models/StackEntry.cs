@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using Preagonal.Scripting.GS2Engine.Enums;
 
 namespace Preagonal.Scripting.GS2Engine.Models;
@@ -15,7 +16,7 @@ public class StackEntry : IStackEntry
 	private object?                                           Value          { get; set; }
 	private object?                                           Parent         { get; set; }
 	public  StackEntryType                                    Type           { get; private set; }
-	public  object?                                           GetValue()     => Value;
+	public  object?                                           GetValue()     => Value is LinkedStackEntry linkedValue ? linkedValue.GetValue() : Value;
 	public  object?                                           GetParent()    => Parent;
 
 	public T1? GetValue<T1>()
@@ -32,41 +33,79 @@ public class StackEntry : IStackEntry
 	{
 		try
 		{
-			/*
-			if (GetterCallback != null)
+			var targetType = typeof(T);
+			var currentValue = GetValue();
+
+			if (currentValue is null)
 			{
-				value = GetterCallback();
-			}
-			else */if (Value?.GetType() == typeof(T))
-			{
-				value = (T)Value;
-			}
-			else if (typeof(T) == typeof(bool))
-			{
-				if (Value?.GetType() == typeof(TString))
-				{
-					if (bool.TryParse(Value.ToString(), out var boolVar))
-					{
-						value = boolVar;
-					}
-					else
-					{
-						value = false;
-					}
-				}
-				else if (Value?.GetType() == typeof(double))
-				{
-					value = (double)Value != 0;
-				}
-			}
-			else if (typeof(T) == typeof(TString))
-			{
-				value = (TString)(Value?.ToString() ?? "");
+				value = targetType == typeof(TString)
+					? (TString)string.Empty
+					: targetType == typeof(string)
+						? string.Empty
+						: default;
+				return value is not null || default(T) is null;
 			}
 
-			value = (T?)Value;
+			if (targetType == typeof(object) || targetType.IsInstanceOfType(currentValue))
+			{
+				value = currentValue;
+				return true;
+			}
 
-			return true;
+			if (targetType == typeof(TString))
+			{
+				value = (TString)Tools.ToScriptString(currentValue);
+				return true;
+			}
+
+			if (targetType == typeof(string))
+			{
+				value = Tools.ToScriptString(currentValue);
+				return true;
+			}
+
+			if (targetType == typeof(double))
+			{
+				value = currentValue switch
+				{
+					bool b    => b ? 1.0d : 0.0d,
+					TString t => double.TryParse(t.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+						? d
+						: 0.0d,
+					string s => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+						? d
+						: 0.0d,
+					IConvertible convertible => Convert.ToDouble(convertible, CultureInfo.InvariantCulture),
+					_ => 0.0d,
+				};
+				return true;
+			}
+
+			if (targetType == typeof(bool))
+			{
+				value = currentValue switch
+				{
+					bool b    => b,
+					TString t => double.TryParse(t.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+						? d != 0.0d
+						: !string.IsNullOrEmpty(t.ToString()),
+					string s => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+						? d != 0.0d
+						: !string.IsNullOrEmpty(s),
+					IConvertible convertible => Convert.ToDouble(convertible, CultureInfo.InvariantCulture) != 0.0d,
+					_ => true,
+				};
+				return true;
+			}
+
+			if (currentValue is IConvertible)
+			{
+				value = Convert.ChangeType(currentValue, targetType, CultureInfo.InvariantCulture);
+				return true;
+			}
+
+			value = default;
+			return false;
 		}
 		catch (Exception e)
 		{
@@ -78,16 +117,23 @@ public class StackEntry : IStackEntry
 
 	public void SetValue(object? value, bool skipCallback = false)
 	{
+		if (Value is LinkedStackEntry linkedValue && value is not LinkedStackEntry)
+		{
+			linkedValue.SetValue(value, skipCallback);
+			Type = linkedValue.Type;
+			return;
+		}
+
 		Value = value switch
 		{
 			string   => (TString)value,
 			TString  => value,
-			int      => (double)value,
+			int      => Convert.ToDouble(value, CultureInfo.InvariantCulture),
 			double   => (double)value,
-			float    => (double)value,
-			decimal  => (double)value,
+			float    => Convert.ToDouble(value, CultureInfo.InvariantCulture),
+			decimal  => Convert.ToDouble(value, CultureInfo.InvariantCulture),
 			string[] => (string[])value,
-			bool     => (bool)value,
+			bool b   => b ? 1.0d : 0.0d,
 			_        => value,
 		};
 		Type = value switch
@@ -99,7 +145,7 @@ public class StackEntry : IStackEntry
 			float    => StackEntryType.Number,
 			decimal  => StackEntryType.Number,
 			string[] => StackEntryType.Array,
-			bool     => StackEntryType.Boolean,
+			bool     => StackEntryType.Number,
 			_        => StackEntryType.Array,
 		};
 

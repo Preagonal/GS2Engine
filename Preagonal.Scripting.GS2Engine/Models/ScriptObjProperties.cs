@@ -7,6 +7,8 @@ public class ScriptObjProperties : ScriptProperties<Script>
 {
 	public ScriptObjProperties() : base(typeof(ScriptVariable))
 	{
+		_ = ScriptVariable.PropertiesInstance;
+
 		AddProperties(
 			this,
 			new()

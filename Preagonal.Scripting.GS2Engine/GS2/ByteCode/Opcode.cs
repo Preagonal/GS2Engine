@@ -17,6 +17,7 @@ public enum Opcode
 
 	OP_CMD_CALL = 9, //  may just increase the loop count for the loop limit of 10k
 	OP_JMP      = 10, //  JUMP to N(0, 4) by byte offset unconditionally
+	OP_WAITFOR  = 11,
 
 	OP_TYPE_NUMBER        = 20,
 	OP_TYPE_STRING        = 21,
@@ -39,12 +40,17 @@ public enum Opcode
 	OP_INLINE_NEW         = 40,
 	OP_MAKEVAR            = 41,
 	OP_NEW_OBJECT         = 42,
+	OP_OBJ_FROM_STR       = 43,
 	OP_INLINE_CONDITIONAL = 44,
+	OP_UNKNOWN_45         = 45,
+	OP_UNKNOWN_46         = 46,
+	OP_UNKNOWN_47         = 47,
 	OP_ASSIGN             = 50, //  S(1) = S(0)
 	OP_FUNC_PARAMS_END    = 51,
 
 	OP_INC = 52, //  SET (S(0) = S(0) + 1)
 	OP_DEC = 53, //  SET (S(0) = S(0) - 1)
+	OP_UNKNOWN_54 = 54,
 
 	OP_ADD = 60, //  PUSH (S(1) + S(0))
 	OP_SUB = 61, //  PUSH (S(1) - S(0))
@@ -52,6 +58,8 @@ public enum Opcode
 	OP_DIV = 63, //  PUSH (S(1) / S(0))
 	OP_MOD = 64, //  PUSH (S(1) % S(0))
 	OP_POW = 65, //  PUSH (S(1) ^ S(0))
+	OP_UNKNOWN_66 = 66,
+	OP_UNKNOWN_67 = 67,
 
 	OP_NOT      = 68, //  PUSH (!S(0))
 	OP_UNARYSUB = 69,
@@ -65,6 +73,8 @@ public enum Opcode
 
 	OP_BWO = 76, //  PUSH (S(1) | S(0))
 	OP_BWA = 77, //  PUSH (S(1) & S(0))
+	OP_BWX = 78,
+	OP_BWI = 79,
 
 	OP_IN_RANGE  = 80,
 	OP_IN_OBJ    = 81,
@@ -88,7 +98,10 @@ public enum Opcode
 	OP_VECY                  = 98,
 	OP_OBJ_INDICES           = 99,
 	OP_OBJ_LINK              = 100,
+	OP_BW_LEFTSHIFT          = 101,
+	OP_BW_RIGHTSHIFT         = 102,
 	OP_CHAR                  = 103,
+	OP_OBJ_COMPARE           = 104,
 	OP_OBJ_TRIM              = 110,
 	OP_OBJ_LENGTH            = 111,
 	OP_OBJ_POS               = 112,
@@ -100,6 +113,7 @@ public enum Opcode
 	OP_OBJ_TOKENIZE          = 118,
 	OP_TRANSLATE             = 119,
 	OP_OBJ_POSITIONS         = 120, // array of positions of the substring in the string
+	OP_DYNAMIC_ADD           = 121,
 	OP_OBJ_SIZE              = 130,
 	OP_ARRAY                 = 131,
 	OP_ARRAY_ASSIGN          = 132,
@@ -123,5 +137,48 @@ public enum Opcode
 	OP_LEVEL                 = 184,
 	OP_TEMP                  = 189,
 	OP_PARAMS                = 190,
-	OP_NUM_OPS, //  This is to get the number of operations
+	OP_UNKNOWN_200           = 200,
+	OP_UNKNOWN_201           = 201,
+	OP_UNKNOWN_202           = 202,
+	OP_UNKNOWN_203           = 203,
+	OP_UNKNOWN_204           = 204,
+	OP_UNKNOWN_205           = 205,
+	OP_UNKNOWN_206           = 206,
+	OP_UNKNOWN_207           = 207,
+	OP_UNKNOWN_208           = 208,
+	OP_UNKNOWN_209           = 209,
+	OP_UNKNOWN_210           = 210,
+	OP_UNKNOWN_211           = 211,
+	OP_UNKNOWN_212           = 212,
+	OP_UNKNOWN_213           = 213,
+	OP_UNKNOWN_214           = 214,
+	OP_UNKNOWN_215           = 215,
+	OP_UNKNOWN_216           = 216,
+	OP_UNKNOWN_217           = 217,
+	OP_UNKNOWN_218           = 218,
+	OP_UNKNOWN_219           = 219,
+	OP_UNKNOWN_220           = 220,
+	OP_UNKNOWN_221           = 221,
+	OP_UNKNOWN_222           = 222,
+	OP_UNKNOWN_223           = 223,
+	OP_UNKNOWN_224           = 224,
+	OP_UNKNOWN_225           = 225,
+	OP_UNKNOWN_226           = 226,
+	OP_UNKNOWN_227           = 227,
+	OP_UNKNOWN_228           = 228,
+	OP_UNKNOWN_229           = 229,
+	OP_UNKNOWN_230           = 230,
+	OP_UNKNOWN_231           = 231,
+	OP_UNKNOWN_232           = 232,
+	OP_UNKNOWN_233           = 233,
+	OP_UNKNOWN_234           = 234,
+	OP_UNKNOWN_235           = 235,
+	OP_UNKNOWN_236           = 236,
+	OP_UNKNOWN_237           = 237,
+	OP_UNKNOWN_238           = 238,
+	OP_UNKNOWN_239           = 239,
+	OP_UNKNOWN_240           = 240,
+	OP_UNKNOWN_241           = 241,
+	OP_UNKNOWN_242           = 242,
+	OP_NUM_OPS               = 243, //  This is to get the number of operations
 }

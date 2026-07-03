@@ -164,7 +164,35 @@ public class TString
 		return (short)(((val[0]-32) << 8) + (val[1]-32));
 	}
 
-	public void writeChar(byte pData, bool nullTerminate = false) => AddBuffer(pData);
+	public void writeByte(byte pData, bool nullTerminate = false)
+	{
+		AddBuffer(pData);
+		if (nullTerminate)
+			writeByte(0);
+	}
+
+	public void writeInt(int pData)
+	{
+		writeByte((byte)((pData >> 24) & 0xFF));
+		writeByte((byte)((pData >> 16) & 0xFF));
+		writeByte((byte)((pData >> 8) & 0xFF));
+		writeByte((byte)(pData & 0xFF));
+	}
+
+	public void writeBytes(IEnumerable<byte> pData)
+	{
+		foreach (var data in pData)
+			writeByte(data);
+	}
+
+	public void writeCString(string pData)
+	{
+		foreach (var data in Encoding.ASCII.GetBytes(pData))
+			writeByte(data);
+		writeByte(0);
+	}
+
+	public byte[] toByteArray() => buffer[..Length];
 
 	public bool starts(string startsWith) => Encoding.ASCII.GetString(buffer).StartsWith(startsWith);
 
@@ -188,5 +216,5 @@ public class TString
 	public bool StartsWith(TString toString, StringComparison culture) =>
 		ToString().StartsWith(toString.ToString(), culture);
 
-	public TString ToLower() => ToString().ToLower();
+	public TString ToLower() => ToString().ToLowerInvariant();
 }

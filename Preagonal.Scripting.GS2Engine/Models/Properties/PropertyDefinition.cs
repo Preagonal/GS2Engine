@@ -22,8 +22,8 @@ public readonly struct PropertyDefinition<TInstance, TRet>(string propertyName, 
 		//WriteTyped(instance, (TRet)value!);
 
 
-		if (value != null && value.GetType() == typeof(TString) && typeof(TRet) == typeof(string))
-			value = value.ToString();
+		if (typeof(TRet) == typeof(string))
+			value = Tools.ToScriptString(value);
 		//else
 		//	throw new ArgumentException($"Value is not convertible, {value?.GetType().FullName}", nameof(value));
 

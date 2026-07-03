@@ -128,6 +128,20 @@ public class StackEntryExtensionsTests
 	}
 
 	[Fact]
+	public void When_input_is_object_wrapped_int_array_Then_return_StackEntry_with_type_array()
+	{
+		//Arrange
+		object val = new[] { 1, 2 };
+
+		//Act
+		var test = val.ToStackEntry();
+
+		//Assert
+		Assert.Equal(StackEntryType.Array, test.Type);
+		Assert.Same(val, test.GetValue());
+	}
+
+	[Fact]
 	public void When_input_is_command_Then_return_StackEntry_with_type_array_and_value_type_List_string()
 	{
 		//Arrange
@@ -196,11 +210,11 @@ public class StackEntryExtensionsTests
 		//Act
 		//Assert
 		var exception = Assert.Throws<ArgumentOutOfRangeException>(() => val.ToStackEntry());
-		Assert.Equal("Specified argument was out of the range of valid values. (Parameter 'stackObject')", exception.Message);
+		Assert.Equal("StackType: System.Threading.Thread (Parameter 'stackType')", exception.Message);
 	}
 
 	[Fact]
-	public void When_input_is_bool_Then_return_StackEntry_with_type_bool_and_value_type_bool()
+	public void When_input_is_bool_Then_return_StackEntry_with_type_number_and_value_type_double()
 	{
 		//Arrange
 		const bool val = true;
@@ -210,8 +224,21 @@ public class StackEntryExtensionsTests
 		var test = val.ToStackEntry();
 
 		//Assert
-		Assert.Equal(StackEntryType.Boolean, test.Type);
+		Assert.Equal(StackEntryType.Number, test.Type);
 		Assert.Equal(typeof(double), test.GetValue()?.GetType());
 		Assert.Equal(expected, test.GetValue());
+	}
+
+	[Fact]
+	public void When_tstring_contains_number_Then_script_double_returns_number()
+	{
+		//Arrange
+		TString val = "12.5";
+
+		//Act
+		var test = val.ToScriptDouble();
+
+		//Assert
+		Assert.Equal(12.5d, test);
 	}
 }

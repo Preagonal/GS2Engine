@@ -19,10 +19,12 @@ public class Script : ScriptVariable
 	public new static readonly ScriptObjProperties                PropertiesInstance = [];
 	public override            IScriptProperties                  Properties => PropertiesInstance;
 	private readonly           List<TString>                      _strings  = [];
+	private readonly           Dictionary<string, Dictionary<Script, string>> _eventCatchers = new(StringComparer.OrdinalIgnoreCase);
 	public readonly            Dictionary<string, FunctionParams> Functions = new();
 	private                    ScriptCom[]                        _bytecode = [];
 	public readonly            ScriptVariable?                    RefObject = null;
 	public                     bool                               ExecutionEnabled { get; private set; } = true;
+	public                     bool                               HasOnlyFunctions { get; private set; } = true;
 	public                     TString                            File             { get; set; }
 	public                     ScriptType                         Type             { get; }
 	private                    int                                Gs1Flags         { get; set; }
@@ -86,8 +88,7 @@ public class Script : ScriptVariable
 
 	~Script()
 	{
-		if (ScriptManager.GlobalScripts.ContainsKey(GetHashCode().ToString()))
-			ScriptManager.GlobalScripts.TryRemove(GetHashCode().ToString(), out _);
+		ScriptManager.UnregisterGlobalScript(this);
 	}
 
 	public void UpdateFromFile(string scriptFile)
@@ -114,8 +115,7 @@ public class Script : ScriptVariable
 
 	private void Init()
 	{
-		if (!ScriptManager.GlobalScripts.ContainsKey(GetHashCode().ToString()))
-			ScriptManager.GlobalScripts.AddOrUpdate(GetHashCode().ToString(), this, (s, script) => ScriptManager.GlobalScripts[s] = script);
+		ScriptManager.RegisterGlobalScript(this);
 
 		EnableExecution();
 	}
@@ -127,6 +127,7 @@ public class Script : ScriptVariable
 		_bytecode = [];
 		_strings.Clear();
 		Clear();
+		HasOnlyFunctions = true;
 		HaltExecution();
 	}
 
@@ -184,7 +185,7 @@ public class Script : ScriptVariable
 							{
 								var ch = segmentSection.readChar();
 								if (ch == '\0') break;
-								functionName.writeChar(ch);
+								functionName.writeByte(ch);
 							}
 
 							var isPublic = functionName.starts("public.");
@@ -207,7 +208,7 @@ public class Script : ScriptVariable
 							{
 								var ch = segmentSection.readChar();
 								if (ch == '\0') break;
-								stringName.writeChar(ch);
+								stringName.writeByte(ch);
 							}
 
 							_strings.Add(stringName);
@@ -283,7 +284,7 @@ public class Script : ScriptVariable
 								{
 									var ch = segmentSection.readChar();
 									if (ch == '\0') break;
-									doubleString.writeChar(ch);
+									doubleString.writeByte(ch);
 								}
 
 								doubleString = doubleString.ToString().Replace("--", "");
@@ -369,24 +370,256 @@ public class Script : ScriptVariable
 	}
 
 	private void AddFunction(TString functionName, int pos, bool isPublic) =>
-		Functions.Add(functionName.ToString().ToLower(), new() { BytecodePosition = pos, IsPublic = isPublic });
+		Functions.Add(functionName.ToString().ToLowerInvariant(), new() { BytecodePosition = pos, IsPublic = isPublic });
 
-	private static void OnScriptUpdated()
+	private void OnScriptUpdated()
 	{
-		//fixBadByteCode();
-		//checkOnlyFunctions();
+		FixBadByteCode();
+		CheckOnlyFunctions();
 		OptimizeByteCode();
 	}
 
-	private static void OptimizeByteCode()
+	private void FixBadByteCode()
 	{
+		var bytecodeLength = _bytecode.Length;
+		for (var index = 0; index < bytecodeLength; index++)
+		{
+			var op = _bytecode[index];
+			var branchOffset = (byte)op.OpCode - (byte)Opcode.OP_SET_INDEX;
+			if (branchOffset is < 0 or >= 5)
+				continue;
+
+			if (op.Value >= 0.0d && op.Value <= bytecodeLength)
+				continue;
+
+			Tools.DebugLine("Script: bad script stream, game might have errors.");
+			op.Value = bytecodeLength;
+		}
 	}
 
-	private async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? parameters = null)
+	private void CheckOnlyFunctions()
+	{
+		if (_bytecode.Length < 1)
+		{
+			HasOnlyFunctions = true;
+			return;
+		}
+
+		HasOnlyFunctions = _bytecode[0].OpCode == Opcode.OP_SET_INDEX &&
+		                   _bytecode.Length <= _bytecode[0].Value;
+	}
+
+	private void OptimizeByteCode()
+	{
+		if (_bytecode.Length < 2)
+			return;
+
+		for (var index = 0; index < _bytecode.Length - 1; index++)
+		{
+			var op = _bytecode[index];
+			var next = _bytecode[index + 1];
+
+			if (op.OpCode == Opcode.OP_TYPE_NUMBER)
+			{
+				if (next.OpCode == Opcode.OP_ARRAY)
+				{
+					op.OpCode = Opcode.OP_UNKNOWN_240;
+					SetNoOp(index + 1);
+					index++;
+					continue;
+				}
+
+				var hasAssignAfterNext = index + 2 < _bytecode.Length && _bytecode[index + 2].OpCode == Opcode.OP_ASSIGN;
+				var replacement = hasAssignAfterNext
+					? GetOptimizedImmediateAssignOpcode(next.OpCode)
+					: GetOptimizedImmediateOpcode(next.OpCode);
+
+				if (replacement != null)
+				{
+					op.OpCode = replacement.Value;
+					SetNoOp(index + 1);
+					if (hasAssignAfterNext)
+					{
+						SetNoOp(index + 2);
+						index += 2;
+					}
+					else
+					{
+						index++;
+					}
+				}
+
+				continue;
+			}
+
+			if (op.OpCode == Opcode.OP_TYPE_VAR)
+			{
+				if (next.OpCode == Opcode.OP_CONV_TO_OBJECT)
+				{
+					op.OpCode = Opcode.OP_UNKNOWN_235;
+					SetNoOp(index + 1);
+					index++;
+					continue;
+				}
+
+				if (next.OpCode == Opcode.OP_MEMBER_ACCESS)
+				{
+					var replacement = Opcode.OP_UNKNOWN_234;
+					var consumed = 1;
+					if (index + 2 < _bytecode.Length)
+					{
+						switch (_bytecode[index + 2].OpCode)
+						{
+							case Opcode.OP_CONV_TO_FLOAT:
+								replacement = Opcode.OP_UNKNOWN_236;
+								consumed = 2;
+								break;
+							case Opcode.OP_CONV_TO_STRING:
+								replacement = Opcode.OP_UNKNOWN_237;
+								consumed = 2;
+								break;
+							case Opcode.OP_CONV_TO_OBJECT:
+								replacement = Opcode.OP_UNKNOWN_238;
+								consumed = 2;
+								break;
+							case Opcode.OP_UNKNOWN_47
+								when index + 3 >= _bytecode.Length || _bytecode[index + 3].OpCode != Opcode.OP_UNKNOWN_45:
+								replacement = Opcode.OP_UNKNOWN_239;
+								consumed = 2;
+								break;
+						}
+					}
+
+					op.OpCode = replacement;
+					for (var offset = 1; offset <= consumed; offset++)
+						SetNoOp(index + offset);
+					index += consumed;
+					continue;
+				}
+			}
+
+			if (op.OpCode == Opcode.OP_UNKNOWN_46)
+			{
+				var replacement = GetOptimizedRegisterOpcode(next.OpCode);
+				if (replacement != null)
+				{
+					op.OpCode = replacement.Value;
+					SetNoOp(index + 1);
+					index++;
+					continue;
+				}
+
+				replacement = GetOptimizedRegisterMutationOpcode(next.OpCode);
+				if (replacement != null &&
+				    index + 2 < _bytecode.Length &&
+				    _bytecode[index + 2].OpCode == Opcode.OP_INDEX_DEC)
+				{
+					op.OpCode = replacement.Value;
+					SetNoOp(index + 1);
+					SetNoOp(index + 2);
+					index += 2;
+					continue;
+				}
+			}
+
+			if (op.OpCode == Opcode.OP_UNKNOWN_47 && next.OpCode == Opcode.OP_UNKNOWN_45)
+			{
+				op.OpCode = Opcode.OP_UNKNOWN_242;
+				op.Value = next.Value;
+				SetNoOp(index + 1);
+				index++;
+				continue;
+			}
+
+			var assignmentReplacement = next.OpCode == Opcode.OP_ASSIGN
+				? GetOptimizedStackAssignOpcode(op.OpCode)
+				: null;
+
+			if (assignmentReplacement == null)
+				continue;
+
+			op.OpCode = assignmentReplacement.Value;
+			SetNoOp(index + 1);
+			index++;
+		}
+	}
+
+	private void SetNoOp(int index)
+	{
+		_bytecode[index].OpCode = Opcode.OP_NONE;
+		_bytecode[index].Value = 0.0d;
+		_bytecode[index].VariableName = null;
+	}
+
+	private static Opcode? GetOptimizedImmediateOpcode(Opcode opcode) =>
+		opcode switch
+		{
+			Opcode.OP_ADD => Opcode.OP_UNKNOWN_200,
+			Opcode.OP_SUB => Opcode.OP_UNKNOWN_201,
+			Opcode.OP_MUL => Opcode.OP_UNKNOWN_202,
+			Opcode.OP_DIV => Opcode.OP_UNKNOWN_203,
+			Opcode.OP_MOD => Opcode.OP_UNKNOWN_204,
+			Opcode.OP_POW => Opcode.OP_UNKNOWN_205,
+			Opcode.OP_UNKNOWN_66 => Opcode.OP_UNKNOWN_206,
+			Opcode.OP_UNKNOWN_67 => Opcode.OP_UNKNOWN_207,
+			Opcode.OP_LT => Opcode.OP_UNKNOWN_224,
+			Opcode.OP_GT => Opcode.OP_UNKNOWN_225,
+			Opcode.OP_LTE => Opcode.OP_UNKNOWN_226,
+			Opcode.OP_GTE => Opcode.OP_UNKNOWN_227,
+			_ => null,
+		};
+
+	private static Opcode? GetOptimizedStackAssignOpcode(Opcode opcode) =>
+		opcode switch
+		{
+			Opcode.OP_ADD => Opcode.OP_UNKNOWN_208,
+			Opcode.OP_SUB => Opcode.OP_UNKNOWN_209,
+			Opcode.OP_MUL => Opcode.OP_UNKNOWN_210,
+			Opcode.OP_DIV => Opcode.OP_UNKNOWN_211,
+			Opcode.OP_MOD => Opcode.OP_UNKNOWN_212,
+			Opcode.OP_POW => Opcode.OP_UNKNOWN_213,
+			Opcode.OP_UNKNOWN_66 => Opcode.OP_UNKNOWN_214,
+			Opcode.OP_UNKNOWN_67 => Opcode.OP_UNKNOWN_215,
+			_ => null,
+		};
+
+	private static Opcode? GetOptimizedImmediateAssignOpcode(Opcode opcode) =>
+		opcode switch
+		{
+			Opcode.OP_ADD => Opcode.OP_UNKNOWN_216,
+			Opcode.OP_SUB => Opcode.OP_UNKNOWN_217,
+			Opcode.OP_MUL => Opcode.OP_UNKNOWN_218,
+			Opcode.OP_DIV => Opcode.OP_UNKNOWN_219,
+			Opcode.OP_MOD => Opcode.OP_UNKNOWN_220,
+			Opcode.OP_POW => Opcode.OP_UNKNOWN_221,
+			Opcode.OP_UNKNOWN_66 => Opcode.OP_UNKNOWN_222,
+			Opcode.OP_UNKNOWN_67 => Opcode.OP_UNKNOWN_223,
+			_ => null,
+		};
+
+	private static Opcode? GetOptimizedRegisterOpcode(Opcode opcode) =>
+		opcode switch
+		{
+			Opcode.OP_COPY_LAST_OP => Opcode.OP_UNKNOWN_233,
+			Opcode.OP_CONV_TO_FLOAT => Opcode.OP_UNKNOWN_228,
+			Opcode.OP_CONV_TO_STRING => Opcode.OP_UNKNOWN_229,
+			Opcode.OP_CONV_TO_OBJECT => Opcode.OP_UNKNOWN_230,
+			_ => null,
+		};
+
+	private static Opcode? GetOptimizedRegisterMutationOpcode(Opcode opcode) =>
+		opcode switch
+		{
+			Opcode.OP_INC => Opcode.OP_UNKNOWN_231,
+			Opcode.OP_DEC => Opcode.OP_UNKNOWN_232,
+			_ => null,
+		};
+
+	private async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? parameters = null, ScriptVariable? receiverOverride = null)
 	{
 		try
 		{
-			return await Machine.Execute(functionName, parameters).ConfigureAwait(false);
+			return await Machine.Execute(functionName, parameters, receiverOverride).ConfigureAwait(false);
 		}
 		catch (Exception e)
 		{
@@ -396,6 +629,90 @@ public class Script : ScriptVariable
 		}
 	}
 
+	internal Task<IStackEntry> CallEntries(string eventName, IEnumerable<IStackEntry>? args, ScriptVariable? receiverOverride = null) =>
+		Execute(eventName, BuildCallStack(args), receiverOverride);
+
+	internal void InstallObjectEventCatchers(string objectName, Script sourceScript)
+	{
+		if (string.IsNullOrWhiteSpace(objectName)) return;
+
+		var prefix = $"{objectName}.";
+		var normalizedPrefix = prefix.ToLowerInvariant();
+		lock (_eventCatchers)
+		{
+			foreach (var eventName in _eventCatchers.Keys.Where(key => key.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase)).ToArray())
+			{
+				var catchers = _eventCatchers[eventName];
+				catchers.Remove(sourceScript);
+				if (catchers.Count == 0)
+					_eventCatchers.Remove(eventName);
+			}
+
+			foreach (var functionName in sourceScript.GetObjectEventFunctionNames(prefix))
+			{
+				if (!_eventCatchers.TryGetValue(functionName, out var catchers))
+				{
+					catchers = new();
+					_eventCatchers[functionName] = catchers;
+				}
+
+				catchers[sourceScript] = functionName;
+			}
+		}
+	}
+
+	private IEnumerable<string> GetObjectEventFunctionNames(string objectPrefix) =>
+		Functions.Keys
+		         .Where(functionName =>
+		         {
+			         if (!functionName.StartsWith(objectPrefix, StringComparison.OrdinalIgnoreCase)) return false;
+			         var eventName = functionName[objectPrefix.Length..];
+			         return eventName.StartsWith("on", StringComparison.OrdinalIgnoreCase);
+		         })
+		         .ToArray();
+
+	private bool TryGetEventCatchers(string eventName, out KeyValuePair<Script, string>[] catchers)
+	{
+		lock (_eventCatchers)
+		{
+			if (_eventCatchers.TryGetValue(eventName.ToLowerInvariant(), out var eventCatchers))
+			{
+				catchers = eventCatchers.ToArray();
+				return catchers.Length > 0;
+			}
+		}
+
+		catchers = [];
+		return false;
+	}
+
+	private static Stack<IStackEntry> BuildCallStack(IEnumerable<IStackEntry>? args)
+	{
+		var callStack = new Stack<IStackEntry>();
+		if (args == null) return callStack;
+
+		foreach (var variable in args.Reverse())
+			callStack.Push(variable);
+
+		return callStack;
+	}
+
+	private static IStackEntry? ToCallStackEntry(object variable) =>
+		variable switch
+		{
+			IStackEntry entry => entry,
+			string s => s.ToStackEntry(),
+			int i => i.ToStackEntry(),
+			double d => d.ToStackEntry(),
+			float f => f.ToStackEntry(),
+			decimal dc => dc.ToStackEntry(),
+			string[] sa => sa.ToStackEntry(),
+			int[] ia => ia.ToStackEntry(),
+			bool bo => bo.ToStackEntry(),
+			VariableCollection p => p.ToStackEntry(),
+			_ => null
+		};
+
 	/// <summary>
 	///     Function -> Call Event for Object
 	/// </summary>
@@ -403,43 +720,22 @@ public class Script : ScriptVariable
 	{
 		try
 		{
+			var entries = args?.Select(ToCallStackEntry).Where(entry => entry != null).Cast<IStackEntry>().ToArray();
+			if (Functions.ContainsKey(eventName.ToLowerInvariant()))
+				return await Execute(eventName, BuildCallStack(entries)).ConfigureAwait(false);
+
+			if (TryGetEventCatchers(eventName, out var catchers))
+			{
+				IStackEntry result = 0.ToStackEntry();
+				foreach (var catcher in catchers)
+					result = await catcher.Key.CallEntries(catcher.Value, entries).ConfigureAwait(false);
+
+				return result;
+			}
 
 			if (args == null) return await Execute(eventName).ConfigureAwait(false);
 
-			var callStack = new Stack<IStackEntry>();
-			foreach (var variable in args.AsEnumerable().Reverse())
-			{
-				switch (variable)
-				{
-					case string s:
-						callStack.Push(s.ToStackEntry());
-						break;
-					case int i:
-						callStack.Push(i.ToStackEntry());
-						break;
-					case double d:
-						callStack.Push(d.ToStackEntry());
-						break;
-					case float f:
-						callStack.Push(f.ToStackEntry());
-						break;
-					case decimal dc:
-						callStack.Push(dc.ToStackEntry());
-						break;
-					case string[] sa:
-						callStack.Push(sa.ToStackEntry());
-						break;
-					case int[] ia:
-						callStack.Push(ia.ToStackEntry());
-						break;
-					case bool bo:
-						callStack.Push(bo.ToStackEntry());
-						break;
-					case VariableCollection p:
-						callStack.Push(p.ToStackEntry());
-						break;
-				}
-			}
+			var callStack = BuildCallStack(entries);
 
 			return await Execute(eventName, callStack).ConfigureAwait(false);
 		}
@@ -453,7 +749,7 @@ public class Script : ScriptVariable
 
 	public async Task<IStackEntry> TriggerEvent(string eventName)
 	{
-		switch (eventName.ToLower())
+		switch (eventName.ToLowerInvariant())
 		{
 			case "ontimeout":
 			{
@@ -504,10 +800,7 @@ public class Script : ScriptVariable
 
 	public void AddObjectReference(string objectType, ScriptVariable obj)
 	{
-		if (ScriptManager.GlobalObjects.ContainsKey(objectType))
-			ScriptManager.GlobalObjects[objectType] = obj;
-		else
-			ScriptManager.GlobalObjects.AddOrUpdate(objectType, obj, (s, collection) => ScriptManager.GlobalObjects[s] = collection);
+		ScriptManager.RegisterGlobalObject(objectType, obj);
 	}
 
 	public IScriptManager ScriptManager { get; }

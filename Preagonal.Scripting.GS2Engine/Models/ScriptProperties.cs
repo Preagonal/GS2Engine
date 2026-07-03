@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Preagonal.Scripting.GS2Engine.GS2.Script;
 using Preagonal.Scripting.GS2Engine.Models.Properties;
 
@@ -36,7 +37,16 @@ public class ScriptProperties<T> : HashSet<IScriptProperty>, IScriptProperties w
 		if (ParentProperties == null) return;
 
 		foreach (var prop in ParentProperties)
+		{
+			if (this.Any(existing =>
+				    existing.ScriptPropertyType == prop.ScriptPropertyType &&
+				    existing.PropertyName.Equals(prop.PropertyName, StringComparison.CurrentCultureIgnoreCase)))
+			{
+				continue;
+			}
+
 			base.Add(prop);
+		}
 	}
 
 	private static IScriptProperties? GetProperties(Type? type)
@@ -71,5 +81,11 @@ public class ScriptProperties<T> : HashSet<IScriptProperty>, IScriptProperties w
 		}
 	}
 
-	public new void Add(IScriptProperty scriptProperty) => base.Add(scriptProperty);
+	public new void Add(IScriptProperty scriptProperty)
+	{
+		RemoveWhere(existing =>
+			existing.ScriptPropertyType == scriptProperty.ScriptPropertyType &&
+			existing.PropertyName.Equals(scriptProperty.PropertyName, StringComparison.CurrentCultureIgnoreCase));
+		base.Add(scriptProperty);
+	}
 }

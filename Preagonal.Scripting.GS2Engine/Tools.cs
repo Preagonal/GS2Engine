@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Collections;
+using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -8,6 +11,29 @@ public delegate void DebugFunc(string? args);
 
 public static class Tools
 {
+	public static readonly CultureInfo ScriptCulture = CultureInfo.GetCultureInfo("en-US");
+
+	static Tools()
+	{
+		CultureInfo.DefaultThreadCurrentCulture = ScriptCulture;
+		CultureInfo.DefaultThreadCurrentUICulture = ScriptCulture;
+		CultureInfo.CurrentCulture = ScriptCulture;
+		CultureInfo.CurrentUICulture = ScriptCulture;
+	}
+
+	public static string ToScriptString(object? value)
+	{
+		return value switch
+		{
+			null => string.Empty,
+			TString t => t.ToString(),
+			bool b => b ? "1" : "0",
+			IEnumerable enumerable and not string => string.Join(",", enumerable.Cast<object?>().Select(ToScriptString)),
+			IFormattable f => f.ToString(null, ScriptCulture),
+			_ => value.ToString() ?? string.Empty,
+		};
+	}
+
 	#region Public Methods
 
 	#region IsNumericType
@@ -38,19 +64,19 @@ public static class Tools
 		value != null &&
 		Type.GetTypeCode(value.GetType()) switch
 		{
-			TypeCode.SByte   => zeroIsPositive ? (sbyte)value >= 0 : (sbyte)value > 0,
-			TypeCode.Int16   => zeroIsPositive ? (short)value >= 0 : (short)value > 0,
-			TypeCode.Int32   => zeroIsPositive ? (int)value >= 0 : (int)value > 0,
-			TypeCode.Int64   => zeroIsPositive ? (long)value >= 0 : (long)value > 0,
-			TypeCode.Single  => zeroIsPositive ? (float)value >= 0 : (float)value > 0,
-			TypeCode.Double  => zeroIsPositive ? (double)value >= 0 : (double)value > 0,
+			TypeCode.SByte => zeroIsPositive ? (sbyte)value >= 0 : (sbyte)value > 0,
+			TypeCode.Int16 => zeroIsPositive ? (short)value >= 0 : (short)value > 0,
+			TypeCode.Int32 => zeroIsPositive ? (int)value >= 0 : (int)value > 0,
+			TypeCode.Int64 => zeroIsPositive ? (long)value >= 0 : (long)value > 0,
+			TypeCode.Single => zeroIsPositive ? (float)value >= 0 : (float)value > 0,
+			TypeCode.Double => zeroIsPositive ? (double)value >= 0 : (double)value > 0,
 			TypeCode.Decimal => zeroIsPositive ? (decimal)value >= 0 : (decimal)value > 0,
-			TypeCode.Byte    => zeroIsPositive || (byte)value > 0,
-			TypeCode.UInt16  => zeroIsPositive || (ushort)value > 0,
-			TypeCode.UInt32  => zeroIsPositive || (uint)value > 0,
-			TypeCode.UInt64  => zeroIsPositive || (ulong)value > 0,
-			TypeCode.Char    => zeroIsPositive || (char)value != '\0',
-			_                => false,
+			TypeCode.Byte => zeroIsPositive || (byte)value > 0,
+			TypeCode.UInt16 => zeroIsPositive || (ushort)value > 0,
+			TypeCode.UInt32 => zeroIsPositive || (uint)value > 0,
+			TypeCode.UInt64 => zeroIsPositive || (ulong)value > 0,
+			TypeCode.Char => zeroIsPositive || (char)value != '\0',
+			_ => false,
 		};
 
 	#endregion
@@ -68,19 +94,19 @@ public static class Tools
 		if (value != null)
 			return Type.GetTypeCode(value.GetType()) switch
 			{
-				TypeCode.SByte   => (sbyte)value,
-				TypeCode.Int16   => (short)value,
-				TypeCode.Int32   => (int)value,
-				TypeCode.Int64   => (long)value,
-				TypeCode.Byte    => value,
-				TypeCode.UInt16  => value,
-				TypeCode.UInt32  => value,
-				TypeCode.UInt64  => value,
-				TypeCode.Single  => (float)value,
-				TypeCode.Double  => (double)value,
+				TypeCode.SByte => (sbyte)value,
+				TypeCode.Int16 => (short)value,
+				TypeCode.Int32 => (int)value,
+				TypeCode.Int64 => (long)value,
+				TypeCode.Byte => value,
+				TypeCode.UInt16 => value,
+				TypeCode.UInt32 => value,
+				TypeCode.UInt64 => value,
+				TypeCode.Single => (float)value,
+				TypeCode.Double => (double)value,
 				TypeCode.Decimal => (decimal)value,
-				TypeCode.Empty   => null,
-				_                => null,
+				TypeCode.Empty => null,
+				_ => null,
 			};
 		return null;
 	}
@@ -98,18 +124,18 @@ public static class Tools
 		if (value != null)
 			return Type.GetTypeCode(value.GetType()) switch
 			{
-				TypeCode.SByte   => (sbyte)value,
-				TypeCode.Int16   => (short)value,
-				TypeCode.Int32   => (int)value,
-				TypeCode.Int64   => (long)value,
-				TypeCode.Byte    => (byte)value,
-				TypeCode.UInt16  => (ushort)value,
-				TypeCode.UInt32  => (uint)value,
-				TypeCode.UInt64  => (long)(ulong)value,
-				TypeCode.Single  => round ? (long)Math.Round((float)value) : (long)(float)value,
-				TypeCode.Double  => round ? (long)Math.Round((double)value) : (long)(double)value,
+				TypeCode.SByte => (sbyte)value,
+				TypeCode.Int16 => (short)value,
+				TypeCode.Int32 => (int)value,
+				TypeCode.Int64 => (long)value,
+				TypeCode.Byte => (byte)value,
+				TypeCode.UInt16 => (ushort)value,
+				TypeCode.UInt32 => (uint)value,
+				TypeCode.UInt64 => (long)(ulong)value,
+				TypeCode.Single => round ? (long)Math.Round((float)value) : (long)(float)value,
+				TypeCode.Double => round ? (long)Math.Round((double)value) : (long)(double)value,
 				TypeCode.Decimal => round ? (long)Math.Round((decimal)value) : (long)(decimal)value,
-				_                => 0,
+				_ => 0,
 			};
 		return 0;
 	}
@@ -193,26 +219,26 @@ public static class Tools
 		#region Variables
 
 		StringBuilder f = new();
-		Regex         r = new(@"\%(\d*\$)?([\'\#\-\+ ]*)(\d*)(?:\.(\d+))?([hl])?([dioxXucsfeEgGpn%])");
+		Regex r = new(@"\%(\d*\$)?([\'\#\-\+ ]*)(\d*)(?:\.(\d+))?([hl])?([dioxXucsfeEgGpn%])");
 		//"%[parameter][flags][width][.precision][length]type"
-		Match?  m              = null;
-		var     w              = string.Empty;
-		var     defaultParamIx = 0;
-		int     paramIx;
+		Match? m = null;
+		var w = string.Empty;
+		var defaultParamIx = 0;
+		int paramIx;
 		object? o = null;
 
-		var flagLeft2Right     = false;
-		var flagAlternate      = false;
-		var flagPositiveSign   = false;
-		var flagPositiveSpace  = false;
-		var flagZeroPadding    = false;
+		var flagLeft2Right = false;
+		var flagAlternate = false;
+		var flagPositiveSign = false;
+		var flagPositiveSpace = false;
+		var flagZeroPadding = false;
 		var flagGroupThousands = false;
 
-		var fieldLength        = 0;
-		var fieldPrecision     = 0;
+		var fieldLength = 0;
+		var fieldPrecision = 0;
 		var shortLongIndicator = '\0';
-		var formatSpecifier    = '\0';
-		var paddingCharacter   = ' ';
+		var formatSpecifier = '\0';
+		var paddingCharacter = ' ';
 
 		#endregion
 
@@ -237,20 +263,20 @@ public static class Tools
 			#region format flags
 
 			// extract format flags
-			flagAlternate      = false;
-			flagLeft2Right     = false;
-			flagPositiveSign   = false;
-			flagPositiveSpace  = false;
-			flagZeroPadding    = false;
+			flagAlternate = false;
+			flagLeft2Right = false;
+			flagPositiveSign = false;
+			flagPositiveSpace = false;
+			flagZeroPadding = false;
 			flagGroupThousands = false;
 			if (m.Groups[2] != null && m.Groups[2].Value.Length > 0)
 			{
 				var flags = m.Groups[2].Value;
 
-				flagAlternate      = flags.IndexOf('#') >= 0;
-				flagLeft2Right     = flags.IndexOf('-') >= 0;
-				flagPositiveSign   = flags.IndexOf('+') >= 0;
-				flagPositiveSpace  = flags.IndexOf(' ') >= 0;
+				flagAlternate = flags.IndexOf('#') >= 0;
+				flagLeft2Right = flags.IndexOf('-') >= 0;
+				flagPositiveSign = flags.IndexOf('+') >= 0;
+				flagPositiveSpace = flags.IndexOf(' ') >= 0;
 				flagGroupThousands = flags.IndexOf('\'') >= 0;
 
 				// positive + indicator overrides a
@@ -266,10 +292,10 @@ public static class Tools
 			// extract field length and
 			// pading character
 			paddingCharacter = ' ';
-			fieldLength      = int.MinValue;
+			fieldLength = int.MinValue;
 			if (m.Groups[3] != null && m.Groups[3].Value.Length > 0)
 			{
-				fieldLength     = Convert.ToInt32(m.Groups[3].Value);
+				fieldLength = Convert.ToInt32(m.Groups[3].Value);
 				flagZeroPadding = m.Groups[3].Value[0] == '0';
 			}
 
@@ -281,7 +307,7 @@ public static class Tools
 			// left2right allignment overrides zero padding
 			if (flagLeft2Right && flagZeroPadding)
 			{
-				flagZeroPadding  = false;
+				flagZeroPadding = false;
 				paddingCharacter = ' ';
 			}
 
@@ -314,10 +340,10 @@ public static class Tools
 
 			// default precision is 6 digits if none is specified except
 			if (fieldPrecision == int.MinValue &&
-			    formatSpecifier != 's' &&
-			    formatSpecifier != 'c' &&
-			    char.ToUpper(formatSpecifier) != 'X' &&
-			    formatSpecifier != 'o')
+				formatSpecifier != 's' &&
+				formatSpecifier != 'c' &&
+				char.ToUpper(formatSpecifier) != 'X' &&
+				formatSpecifier != 'o')
 				fieldPrecision = 6;
 
 			#region get next value parameter
@@ -483,11 +509,11 @@ public static class Tools
 
 				case 's': // string
 					var t = "{0" +
-					        (fieldLength != int.MinValue
-						        ? "," + (flagLeft2Right ? "-" : string.Empty) + fieldLength
-						        : string.Empty) +
-					        ":s}";
-					w = o?.ToString();
+							(fieldLength != int.MinValue
+								? "," + (flagLeft2Right ? "-" : string.Empty) + fieldLength
+								: string.Empty) +
+							":s}";
+					w = ToScriptString(o);
 					if (fieldPrecision >= 0)
 						w = w?.Substring(0, fieldPrecision);
 
@@ -661,10 +687,10 @@ public static class Tools
 	{
 		var w = string.Empty;
 		var lengthFormat = "{0" +
-		                   (fieldLength != int.MinValue
-			                   ? "," + (left2Right ? "-" : string.Empty) + fieldLength
-			                   : string.Empty) +
-		                   "}";
+						   (fieldLength != int.MinValue
+							   ? "," + (left2Right ? "-" : string.Empty) + fieldLength
+							   : string.Empty) +
+						   "}";
 
 		// ReSharper disable once InvertIf
 		if (IsNumericType(value))
@@ -675,7 +701,7 @@ public static class Tools
 			{
 				if (alternate && w != "0")
 					w = "0" + w;
-				w = string.Format(lengthFormat, w);
+				w = string.Format(CultureInfo.InvariantCulture, lengthFormat, w);
 			}
 			else
 			{
@@ -705,24 +731,24 @@ public static class Tools
 	{
 		var w = string.Empty;
 		var lengthFormat = "{0" +
-		                   (fieldLength != int.MinValue
-			                   ? "," + (left2Right ? "-" : string.Empty) + fieldLength
-			                   : string.Empty) +
-		                   "}";
+						   (fieldLength != int.MinValue
+							   ? "," + (left2Right ? "-" : string.Empty) + fieldLength
+							   : string.Empty) +
+						   "}";
 		var numberFormat = "{0:" +
-		                   nativeFormat +
-		                   (fieldPrecision != int.MinValue ? fieldPrecision.ToString() : string.Empty) +
-		                   "}";
+						   nativeFormat +
+						   (fieldPrecision != int.MinValue ? fieldPrecision.ToString() : string.Empty) +
+						   "}";
 
 		if (IsNumericType(value))
 		{
-			w = string.Format(numberFormat, value);
+			w = string.Format(CultureInfo.InvariantCulture, numberFormat, value);
 
 			if (left2Right || padding == ' ')
 			{
 				if (alternate)
 					w = (nativeFormat == "x" ? "0x" : "0X") + w;
-				w = string.Format(lengthFormat, w);
+				w = string.Format(ScriptCulture, lengthFormat, w);
 			}
 			else
 			{
@@ -754,14 +780,14 @@ public static class Tools
 	{
 		var w = string.Empty;
 		var lengthFormat = "{0" +
-		                   (fieldLength != int.MinValue
-			                   ? "," + (left2Right ? "-" : string.Empty) + fieldLength
-			                   : string.Empty) +
-		                   "}";
+						   (fieldLength != int.MinValue
+							   ? "," + (left2Right ? "-" : string.Empty) + fieldLength
+							   : string.Empty) +
+						   "}";
 		var numberFormat = "{0:" +
-		                   nativeFormat +
-		                   (fieldPrecision != int.MinValue ? fieldPrecision.ToString() : "0") +
-		                   "}";
+						   nativeFormat +
+						   (fieldPrecision != int.MinValue ? fieldPrecision.ToString() : "0") +
+						   "}";
 
 
 		if (IsNumericType(value))
@@ -772,18 +798,18 @@ public static class Tools
 			if (numberFormat.Contains("d") && value is double)
 			{
 				var num = (double)value;
-				w = string.Format(numberFormat, (int)num);
+				w = string.Format(CultureInfo.InvariantCulture, numberFormat, (int)num);
 			}
 			else
 			{
-				w = string.Format(numberFormat, value);
+				w = string.Format(CultureInfo.InvariantCulture, numberFormat, value);
 			}
 
 			if (left2Right || padding == ' ')
 			{
 				if (IsPositive(value, true))
 					w = (positiveSign ? "+" : positiveSpace ? " " : string.Empty) + w;
-				w = string.Format(lengthFormat, w);
+				w = string.Format(CultureInfo.InvariantCulture, lengthFormat, w);
 			}
 			else
 			{
@@ -808,11 +834,11 @@ public static class Tools
 					w = w.PadLeft(fieldLength - 1, padding);
 
 				if (IsPositive(value, true))
-					w = (positiveSign                                             ? "+" :
-						    positiveSpace                                         ? " " :
-						    fieldLength != int.MinValue && w.Length < fieldLength ? padding.ToString() :
-							    string.Empty) +
-					    w;
+					w = (positiveSign ? "+" :
+							positiveSpace ? " " :
+							fieldLength != int.MinValue && w.Length < fieldLength ? padding.ToString() :
+								string.Empty) +
+						w;
 				else
 					w = "-" + w;
 			}

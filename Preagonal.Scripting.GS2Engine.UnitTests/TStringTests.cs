@@ -49,7 +49,7 @@ public class TStringTests
 
 		//Act
 		string1 += string2;
-		string1.writeChar(64);
+		string1.writeByte(64);
 
 		//Assert
 		Assert.Equal("asd123@", string1.ToLower().ToString());

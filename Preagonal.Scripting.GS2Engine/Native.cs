@@ -11,7 +11,6 @@ namespace GS2Engine
 		{
 			string? path = Marshal.PtrToStringAnsi(first);
 			Script? script = new Script(path, null, null, null);
-			script.GlobalObjects = null;
 			script.Name = null;
 			script.File = null;
 			return Marshal.StructureToPtr(script, IntPtr.MaxValue, false);

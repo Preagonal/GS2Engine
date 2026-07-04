@@ -20,6 +20,7 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 	private readonly HashSet<int> _mouseLocks = [];
 		private int _areaClickPriority;
 		private int _height;
+		private bool _maximized;
 		private string _minExtent = "";
 		private IGuiControl? _parent;
 		private object? _profile;
@@ -77,6 +78,9 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 		set => SetBounds(value);
 	}
 	public bool         CanMove       { get; set; }
+	public bool         CanClose      { get; set; }
+	public bool         CanMaximize   { get; set; }
+	public bool         CanMinimize   { get; set; }
 	public bool         CanResize     { get; set; }
 	public int          ClientHeight
 	{
@@ -106,7 +110,11 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 			set
 			{
 				if (CanUseParent(value))
+				{
 					_parent = value;
+					if (_maximized)
+						MaximizeToParent();
+				}
 			}
 		}
 	public bool         Flickering    { get; set; }
@@ -117,12 +125,23 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 	public double       HintTime              { get; set; }
 	public string       HorizSizing   { get; set; }
 	public bool         IsDragging            { get; private set; }
+	public bool         IsExternal            { get; set; }
 	public bool         IsInAnimation         { get; set; }
 	public bool         IsInInOutAnimation    { get; set; }
 	public IReadOnlyCollection<TGUIAnimation> Animations => _animations;
 	public string       VertSizing    { get; set; }
 	public int          Layer         { get; set; }
 	public bool         LockMouseDown         { get; set; }
+	public bool         Maximized
+	{
+		get => _maximized;
+		set
+		{
+			_maximized = value;
+			if (_maximized)
+				MaximizeToParent();
+		}
+	}
 	public string       MinExtent
 	{
 		get => _minExtent;
@@ -134,16 +153,19 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 		set => MinExtent = value;
 	}
 	public int          Mode                  { get; set; }
+	public bool         Modal                 { get; set; }
 	public bool         NeedsRepaint          { get; private set; }
 	public object?      Profile
 	{
 		get => _ownProfile ?? _profile;
 		set
 		{
-			_ownProfile = null;
 			_profile = value;
+			if (_ownProfile != null && ResolveProfile(value) is { } assignedProfile)
+				_ownProfile.CopyFrom(assignedProfile);
 		}
 	}
+	public GuiControlProfile? GetResolvedProfile() => _ownProfile ?? ResolveProfile(_profile);
 	public double       Red                   { get; set; }
 	public bool         ResizeWidth   { get; set; }
 	public bool         ResizeHeight  { get; set; }
@@ -174,8 +196,14 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 		get => _visible;
 		set
 		{
+			if (_visible == value) return;
+
+			var wasActuallyVisible = IsActuallyVisible();
 			_visible = value;
 			StopInOutAnimations();
+			var isActuallyVisible = IsActuallyVisible();
+			if (wasActuallyVisible != isActuallyVisible)
+				NotifyVisible(isActuallyVisible);
 		}
 	}
 	public int          Width
@@ -252,7 +280,8 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 			if (obj == null) return;
 			if (obj is GuiControl child)
 			{
-				if (!child.CanUseParent(this)) return;
+				if (!child.CanUseParent(this))
+					return;
 
 				if (child.Parent is GuiControl oldParent && !ReferenceEquals(oldParent, this))
 					oldParent.RemoveControl(child);
@@ -266,6 +295,9 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 				if (!Controls.Contains(obj))
 					Controls.Add(obj);
 			}
+
+			if (Awake && obj is GuiControl guiControl)
+				guiControl.Awaken();
 		}
 
 		public void RemoveControl(IGuiControl? obj)
@@ -280,6 +312,25 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 			if (ReferenceEquals(obj.Parent, this))
 				obj.Parent = null;
 		}
+
+	public void Awaken()
+	{
+		if (Awake) return;
+
+		IGuiControl?[] controls;
+		lock (Controls)
+		{
+			controls = Controls.ToArray();
+		}
+
+		foreach (var control in controls.OfType<GuiControl>())
+			control.Awaken();
+
+		Awake = true;
+		InvokeEvent("onWake");
+		if (IsActuallyVisible())
+			NotifyVisible(true);
+	}
 
 	public void BringToFront()
 	{
@@ -355,10 +406,13 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 
 	public void MakeFirstResponder(bool firstResponder)
 	{
-		if (Parent is GuiControl parent)
-			parent.FirstResponder = firstResponder ? this : null;
-		else
-			FirstResponder = firstResponder ? this : null;
+		if (firstResponder)
+		{
+			SetFirstResponder(this);
+			return;
+		}
+
+		ClearFirstResponder(this);
 	}
 
 	public void MouseLock(int id) => _mouseLocks.Add(id);
@@ -416,27 +470,58 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 
 	public void Show() => Visible = true;
 
+	private void NotifyVisible(bool visible)
+	{
+		InvokeEvent(visible ? "onShow" : "onHide");
+
+		IGuiControl?[] controls;
+		lock (Controls)
+		{
+			controls = Controls.ToArray();
+		}
+
+		foreach (var control in controls.OfType<GuiControl>())
+		{
+			if (control.Awake && control.Visible)
+				control.NotifyVisible(visible);
+		}
+	}
+
 	private void EnsureOwnProfile()
 	{
 		if (_ownProfile != null) return;
 
 		_ownProfile = new GuiControlProfile($"{Id}_profile");
-		if (GetAssignedProfile() is { } assignedProfile)
+		if (ResolveProfile(_profile) is { } assignedProfile)
 			_ownProfile.CopyFrom(assignedProfile);
 	}
 
-	private GuiControlProfile? GetAssignedProfile() =>
-		_profile switch
+	private GuiControlProfile? ResolveProfile(object? profileValue) =>
+		profileValue switch
 		{
-			GuiControlProfile profile => profile,
-			IStackEntry { } entry when entry.GetValue() is GuiControlProfile profile => profile,
+			GuiControlProfile resolvedProfile => resolvedProfile,
+			IStackEntry { } entry => ResolveProfile(entry.GetValue()),
+			TString profileName => ResolveProfile(profileName.ToString()),
+			string profileName => ResolveProfile(profileName),
 			_ => null
 		};
+
+	private GuiControlProfile? ResolveProfile(string profileName)
+	{
+		if (string.IsNullOrWhiteSpace(profileName) ||
+		    Script?.ScriptManager.GlobalVariables.TryGetVariable(profileName.ToLowerInvariant(), out var entry) != true)
+		{
+			return null;
+		}
+
+		return ResolveProfile(entry);
+	}
 
 	public void ShowTop()
 	{
 		Show();
 		BringToFront();
+		FindFirstTabable()?.MakeFirstResponder(true);
 	}
 
 	public void ShowAlwaysTop()
@@ -483,9 +568,44 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 
 	public IGuiControl? TabFirst()
 	{
-		var first = Controls.OfType<GuiControl>().FirstOrDefault(control => control.Active && control.Visible);
-		if (first != null) FirstResponder = first;
+		var first = FindFirstTabable();
+		if (first != null) SetFirstResponder(first);
 		return first;
+	}
+
+	private GuiControl? FindFirstTabable()
+	{
+		if (!Active || !Visible) return null;
+
+		GuiControl[] controls;
+		lock (Controls)
+		{
+			controls = Controls.OfType<GuiControl>().ToArray();
+		}
+
+		foreach (var control in controls)
+		{
+			if (control.FindFirstTabable() is { } tabable)
+				return tabable;
+		}
+
+		return GetResolvedProfile()?.Tab == true ? this : null;
+	}
+
+	private void SetFirstResponder(IGuiControl? control)
+	{
+		FirstResponder = control;
+		if (Parent is GuiControl parent)
+			parent.SetFirstResponder(control);
+	}
+
+	private void ClearFirstResponder(IGuiControl control)
+	{
+		if (ReferenceEquals(FirstResponder, control))
+			FirstResponder = null;
+
+		if (Parent is GuiControl parent)
+			parent.ClearFirstResponder(control);
 	}
 
 	// ReSharper disable once UnusedMember.Global
@@ -574,6 +694,12 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 
 	protected virtual void OnParentResized(int oldParentWidth, int oldParentHeight, int newParentWidth, int newParentHeight)
 	{
+		if (Maximized)
+		{
+			Resize(0, 0, newParentWidth, newParentHeight);
+			return;
+		}
+
 		var newX = X;
 		var newY = Y;
 		var newWidth = Width;
@@ -789,6 +915,12 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 
 	private static string FormatPoint(double x, double y) =>
 		$"{FormatFloat(x)},{FormatFloat(y)}";
+
+	private void MaximizeToParent()
+	{
+		if (Parent is not GuiControl parent) return;
+		Resize(0, 0, parent.Width, parent.Height);
+	}
 
 	private static string FormatFloat(double value) =>
 		value == 0 ? "0" : value.ToString("G", CultureInfo.InvariantCulture);

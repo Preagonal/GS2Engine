@@ -248,6 +248,42 @@ public class ScriptMachineTests
 		return result.toByteArray();
 	}
 
+	private static byte[] CreateFunctionBoundaryBytecode()
+	{
+		TString result = new();
+		WriteSegment(result, BytecodeSegment.Gs1EventFlags, [0, 0, 0, 0]);
+
+		TString functions = new();
+		functions.writeInt(0);
+		functions.writeCString("noReturn");
+		functions.writeInt(3);
+		functions.writeCString("nextFunction");
+		WriteSegment(result, BytecodeSegment.FunctionNames, functions.toByteArray());
+
+		TString strings = new();
+		strings.writeCString("hit");
+		WriteSegment(result, BytecodeSegment.Strings, strings.toByteArray());
+
+		byte[] code =
+		[
+			(byte)Opcode.OP_TYPE_VAR,
+			0xF0,
+			0,
+			(byte)Opcode.OP_TYPE_NUMBER,
+			0xF3,
+			1,
+			(byte)Opcode.OP_ASSIGN,
+			(byte)Opcode.OP_TYPE_NUMBER,
+			0xF3,
+			99,
+			(byte)Opcode.OP_RET,
+		];
+		WriteSegment(result, BytecodeSegment.Bytecode, code);
+		result.writeByte((byte)'\n');
+
+		return result.toByteArray();
+	}
+
 	private static void WriteSegment(TString target, BytecodeSegment segment, IReadOnlyCollection<byte> bytes)
 	{
 		target.writeInt((int)segment);
@@ -420,6 +456,69 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal("from-argument", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_function_in_script2_When_calling_public_function_from_string_object_Then_value_should_be_returned()
+	{
+		//Arrange
+		const string scriptText1 =
+			"""
+						//#CLIENTSIDE
+						public function showOptions() {
+							return "options-opened";
+						}
+			""";
+		CompileScript(scriptText1, "-Serverlist_Options");
+		const string scriptText2 =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							return ("-Serverlist_Options").showOptions();
+						}
+			""";
+		var script2 = CompileScript(scriptText2);
+
+		//Act
+		var result = await script2.Call("onCreated");
+
+		//Assert
+		Assert.Equal("options-opened", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_function_without_return_When_next_function_has_bytecode_Then_execution_stops_at_function_boundary()
+	{
+		//Arrange
+		var script = new Script(_scriptManager, "boundaryScript", CreateFunctionBoundaryBytecode());
+
+		//Act
+		var result = await script.Call("noReturn");
+
+		//Assert
+		Assert.Equal(0d, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_script_join_When_class_is_joined_Then_class_script_is_requested()
+	{
+		//Arrange
+		var requestedClasses = new List<string>();
+		_scriptManager.SetClassScriptRequestHandler(requestedClasses.Add);
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							this.join("joinedclass");
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(["joinedclass"], requestedClasses);
 	}
 
 	[Fact]
@@ -1472,6 +1571,106 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_gui_control_profile_When_bevel_highlight_color_is_assigned_Then_registered_property_is_available()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							new GuiControlProfile("profile") {
+								bevelcolorhl = "255 255 255";
+							}
+
+							return profile.bevelcolorhl;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("255 255 255", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_gui_control_profile_When_bevel_lowlight_color_is_assigned_Then_registered_property_is_available()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							new GuiControlProfile("profile") {
+								bevelcolorll = "0 0 0";
+							}
+
+							return profile.bevelcolorll;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("0 0 0", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public void Given_gui_control_profile_When_copied_Then_justify_is_preserved()
+	{
+		//Arrange
+		var source = new GuiControlProfile("source")
+		{
+			Align = "left",
+			Justify = "center",
+		};
+		var target = new GuiControlProfile("target");
+
+		//Act
+		target.CopyFrom(source);
+
+		//Assert
+		Assert.Equal("center", target.Justify);
+	}
+
+	[Fact]
+	public void Given_gui_control_profile_When_copied_Then_bevel_highlight_color_is_preserved()
+	{
+		//Arrange
+		var source = new GuiControlProfile("source")
+		{
+			BevelColorHl = "255 255 255",
+		};
+		var target = new GuiControlProfile("target");
+
+		//Act
+		target.CopyFrom(source);
+
+		//Assert
+		Assert.Equal("255 255 255", target.BevelColorHl);
+	}
+
+	[Fact]
+	public void Given_gui_control_profile_When_copied_Then_bevel_lowlight_color_is_preserved()
+	{
+		//Arrange
+		var source = new GuiControlProfile("source")
+		{
+			BevelColorLl = "0 0 0",
+		};
+		var target = new GuiControlProfile("target");
+
+		//Act
+		target.CopyFrom(source);
+
+		//Assert
+		Assert.Equal("0 0 0", target.BevelColorLl);
+	}
+
+	[Fact]
 	public async Task Given_gui_control_profile_When_use_own_profile_copies_profile_Then_normal_bitmap_is_copied()
 	{
 		//Arrange
@@ -1499,6 +1698,88 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal("gui2001_button.png", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_gui_control_When_profile_is_assigned_by_string_Then_named_profile_is_resolved()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							new GuiControlProfile("profile") {
+								transparency = 0.3;
+							}
+
+							new GuiControl("control") {
+								profile = "profile";
+							}
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		await script.Call("onCreated");
+
+		//Assert
+		var control = Assert.IsType<GuiControl>(_scriptManager.GlobalVariables["control"].GetValue());
+		Assert.Equal(0.3d, control.GetResolvedProfile()?.Transparency);
+	}
+
+	[Fact]
+	public async Task Given_gui_control_When_use_own_profile_copies_string_profile_Then_profile_values_are_copied()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							new GuiControlProfile("profile") {
+								fillcolor = { 0, 0, 0, 120 };
+								transparency = 0.9;
+							}
+
+							new GuiControl("control") {
+								profile = "profile";
+								useownprofile = true;
+							}
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		await script.Call("onCreated");
+
+		//Assert
+		var control = Assert.IsType<GuiControl>(_scriptManager.GlobalVariables["control"].GetValue());
+		Assert.Equal("0,0,0,120", control.GetResolvedProfile()?.FillColor);
+		Assert.Equal(0.9d, control.GetResolvedProfile()?.Transparency);
+	}
+
+	[Fact]
+	public async Task Given_gui_control_When_profile_is_assigned_after_use_own_profile_Then_own_profile_is_preserved()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							new GuiControl("control") {
+								useownprofile = true;
+								profile = MissingProfile;
+								profile.fonttype = "friz";
+							}
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		await script.Call("onCreated");
+
+		//Assert
+		var control = Assert.IsType<GuiControl>(_scriptManager.GlobalVariables["control"].GetValue());
+		Assert.Equal("friz", control.GetResolvedProfile()?.FontType);
 	}
 
 	[Fact]
@@ -2180,6 +2461,93 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_global_addcontrol_exists_When_nested_initializer_runs_inside_with_Then_with_parent_receives_child()
+	{
+		//Arrange
+		var canvas = new GuiControl("graalcontrol", null!);
+		_scriptManager.RegisterObjectCreator("GuiBitmapCtrl", (id, script) => new GuiBitmapCtrl(id, script));
+		_scriptManager.RegisterObjectCreator("GuiTextCtrl", (id, script) => new GuiTextCtrl(id, script));
+		ScriptProperties<ScriptMachineTests>.AddFunctions(
+			null,
+			new()
+			{
+				{
+					"addcontrol",
+					"",
+					(_, args) =>
+					{
+						canvas.AddControl(args.FirstOrDefault()?.GetValue<GuiControl>());
+						return 0;
+					}
+				}
+			}
+		);
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							root = new GuiControl("root");
+							with (root) {
+								new GuiBitmapCtrl("panel") {
+									new GuiTextCtrl("label") {
+									}
+								}
+							}
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		await script.Call("onCreated");
+
+		//Assert
+		var root = Assert.IsType<GuiControl>(_scriptManager.GlobalVariables["root"].GetValue());
+		var panel = Assert.IsType<GuiBitmapCtrl>(_scriptManager.GlobalVariables["panel"].GetValue());
+		var label = Assert.IsType<GuiTextCtrl>(_scriptManager.GlobalVariables["label"].GetValue());
+		Assert.Same(panel, Assert.Single(root.Controls));
+		Assert.Same(label, Assert.Single(panel.Controls));
+		Assert.Empty(canvas.Controls);
+	}
+
+	[Fact]
+	public void Given_gui_control_showtop_When_called_Then_control_becomes_last_child()
+	{
+		//Arrange
+		var root = new GuiControl("root", null!);
+		var window = new GuiControl("window", null!);
+		var sibling = new GuiControl("sibling", null!);
+		root.AddControl(window);
+		root.AddControl(sibling);
+
+		//Act
+		window.ShowTop();
+
+		//Assert
+		Assert.Same(window, root.Controls.Last());
+	}
+
+	[Fact]
+	public void Given_gui_control_showtop_with_tab_child_When_called_Then_first_responder_is_propagated_to_root()
+	{
+		//Arrange
+		var root = new GuiControl("root", null!);
+		var window = new GuiControl("window", null!);
+		var child = new GuiControl("child", null!)
+		{
+			Profile = new GuiControlProfile("childProfile") { Tab = true }
+		};
+		root.AddControl(window);
+		window.AddControl(child);
+		root.Awaken();
+
+		//Act
+		window.ShowTop();
+
+		//Assert
+		Assert.Same(child, root.FirstResponder);
+	}
+
+	[Fact]
 	public async Task Given_gui_initializer_inside_with_When_named_control_property_is_read_Then_property_value_is_assigned()
 	{
 		//Arrange
@@ -2385,6 +2753,22 @@ public class ScriptMachineTests
 	public async Task Given_joined_gui_class_When_unqualified_addcontrol_is_called_Then_child_is_added_to_receiver()
 	{
 		//Arrange
+		var canvas = new GuiControl("graalcontrol", null!);
+		ScriptProperties<ScriptMachineTests>.AddFunctions(
+			null,
+			new()
+			{
+				{
+					"addcontrol",
+					"",
+					(_, args) =>
+					{
+						canvas.AddControl(args.FirstOrDefault()?.GetValue<GuiControl>());
+						return 0;
+					}
+				}
+			}
+		);
 		const string classText =
 			"""
 						//#CLIENTSIDE
@@ -2413,6 +2797,7 @@ public class ScriptMachineTests
 		var child = Assert.IsType<GuiControl>(_scriptManager.GlobalVariables["child"].GetValue());
 		var childControl = Assert.Single(parent.Controls);
 		Assert.Same(child, childControl);
+		Assert.Empty(canvas.Controls);
 	}
 
 	[Fact]
@@ -2435,6 +2820,129 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal("12 34", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_global_properties_in_array_literal_When_assigned_to_extent_Then_property_values_are_used()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							control = new GuiControl("control");
+							control.extent = {screenwidth, screenheight};
+							return control.extent;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("1024 1024", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_client_width_global_property_When_assigning_control_client_width_Then_control_property_is_written()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							control = new GuiControl("control");
+							control.clientwidth = screenwidth;
+							control.clientheight = screenheight;
+							return control.extent;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("1024 1024", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_client_width_in_constructor_block_When_assigned_from_global_property_Then_control_property_is_written()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							new GuiControl("control") {
+								clientwidth = screenwidth;
+								clientheight = screenheight;
+							}
+							return control.extent;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("1024 1024", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_gui_control_in_parent_When_maximized_is_true_Then_control_matches_parent_extent()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							parent = new GuiControl("parent");
+							parent.extent = {300, 200};
+							with (parent) {
+								new GuiControl("child") {
+									maximized = true;
+								}
+							}
+							return child.bounds;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("0 0 300 200", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_gui_control_in_parent_When_maximized_is_false_Then_control_keeps_default_extent()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							parent = new GuiControl("parent");
+							parent.extent = {300, 200};
+							with (parent) {
+								new GuiControl("child") {
+									maximized = false;
+								}
+							}
+							return child.bounds;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("0 0 64 64", result.GetValue()?.ToString());
 	}
 
 	[Fact]
@@ -2503,6 +3011,124 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal("3.14", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_global_string_property_When_compared_equal_Then_property_value_is_used()
+	{
+		//Arrange
+		var propertyName = $"globalcomparep{Guid.NewGuid():N}";
+		ScriptProperties<ScriptMachineTests>.AddProperties(
+			null,
+			new()
+			{
+				{ propertyName, "", _ => "ready" }
+			}
+		);
+		var script = CompileScript(
+			$$"""
+			//#CLIENTSIDE
+			function onCreated() {
+				return {{propertyName}} == "ready";
+			}
+			"""
+		);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(1.0d, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_empty_global_string_property_When_compared_not_equal_empty_Then_false_is_returned()
+	{
+		//Arrange
+		var propertyName = $"globalcomparep{Guid.NewGuid():N}";
+		ScriptProperties<ScriptMachineTests>.AddProperties(
+			null,
+			new()
+			{
+				{ propertyName, "", _ => string.Empty }
+			}
+		);
+		var script = CompileScript(
+			$$"""
+			//#CLIENTSIDE
+			function onCreated() {
+				return {{propertyName}} != "";
+			}
+			"""
+		);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_global_string_property_When_assigned_Then_property_setter_is_called()
+	{
+		//Arrange
+		var propertyName = $"$pref::unit::p{Guid.NewGuid():N}";
+		var storedValue = "en";
+		ScriptProperties<ScriptMachineTests>.AddProperties(
+			null,
+			new()
+			{
+				{ propertyName, "", _ => storedValue, (_, value) => storedValue = value }
+			}
+		);
+		var script = CompileScript(
+			$$"""
+			//#CLIENTSIDE
+			function onCreated() {
+				{{propertyName}} = "sv";
+				return {{propertyName}};
+			}
+			"""
+		);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("sv", result.GetValue<string>());
+		Assert.Equal("sv", storedValue);
+	}
+
+	[Fact]
+	public async Task Given_global_bool_property_When_assigned_Then_property_setter_is_called()
+	{
+		//Arrange
+		var propertyName = $"$pref::unit::p{Guid.NewGuid():N}";
+		var storedValue = false;
+		ScriptProperties<ScriptMachineTests>.AddProperties(
+			null,
+			new()
+			{
+				{ propertyName, "", _ => storedValue, (_, value) => storedValue = value }
+			}
+		);
+		var script = CompileScript(
+			$$"""
+			//#CLIENTSIDE
+			function onCreated() {
+				{{propertyName}} = 1;
+				return {{propertyName}};
+			}
+			"""
+		);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(1.0d, result.GetValue<double>());
+		Assert.True(storedValue);
 	}
 
 	[Fact]
@@ -3594,6 +4220,25 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_function_only_script_When_function_is_called_first_time_Then_function_body_runs()
+	{
+		//Arrange
+		var script = CompileScript(
+			"""
+			function onCreated() {
+				this.called = true;
+			}
+			"""
+		);
+
+		//Act
+		await script.Call("onCreated");
+
+		//Assert
+		Assert.True(script.GetVariable("called").GetValue<bool>());
+	}
+
+	[Fact]
 	public async Task Given_gui_control_event_helper_When_action_is_triggered_Then_script_callback_runs()
 	{
 		//Arrange
@@ -3670,6 +4315,70 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal(1d, profile.Transparency);
+	}
+
+	[Fact]
+	public void Given_unknown_profile_constructor_When_type_name_ends_with_profile_Then_profile_is_created()
+	{
+		//Arrange
+		var script = new Script(_scriptManager, ScriptType.Weapon);
+
+		//Act
+		var created = _scriptManager.TryCreateObject("GuiBlueButtonProfile", "buttonprofile", script, out var createdObject);
+
+		//Assert
+		Assert.True(created);
+		Assert.IsType<GuiControlProfile>(createdObject);
+		Assert.True(_scriptManager.GlobalVariables.ContainsVariable("buttonprofile"));
+	}
+
+	[Fact]
+	public void Given_profile_constructor_uses_existing_profile_name_When_created_Then_profile_values_are_copied()
+	{
+		//Arrange
+		var script = new Script(_scriptManager, ScriptType.Weapon);
+		_scriptManager.RegisterGlobalObject("baseprofile", new GuiControlProfile("baseprofile")
+		{
+			FontSize = 22,
+			FillColor = "1 2 3"
+		});
+
+		//Act
+		var created = _scriptManager.TryCreateObject("BaseProfile", "copyprofile", script, out var createdObject);
+
+		//Assert
+		Assert.True(created);
+		var profile = Assert.IsType<GuiControlProfile>(createdObject);
+		Assert.Equal(22, profile.FontSize);
+		Assert.Equal("1 2 3", profile.FillColor);
+	}
+
+	[Fact]
+	public async Task Given_gui_control_profile_constructor_When_default_profile_exists_Then_default_values_are_copied()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+			function onCreated() {
+				new GuiControlProfile("GuiDefaultProfile") {
+					fontType = "Arial";
+					fontColor = "255 224 160";
+				}
+
+				new GuiControlProfile("childprofile") {
+					fontSize = 12;
+				}
+
+				return childprofile.fonttype @ "," @ childprofile.fontcolor @ "," @ childprofile.fontsize;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("Arial,255 224 160,12", result.GetValue()?.ToString());
 	}
 
 	[Fact]
@@ -3815,6 +4524,72 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.True(result.GetValue<bool>());
+	}
+
+	[Fact]
+	public async Task Given_gui_control_constructor_block_When_parent_is_read_Then_new_root_control_has_null_parent()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							new GuiControl("test") {
+								temp.result = parent == null;
+							}
+
+							return temp.result;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.True(result.GetValue<bool>());
+	}
+
+	[Fact]
+	public void Given_visible_gui_control_When_awakened_Then_onshow_is_called()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function ctrl.onShow() {
+							shown = true;
+						}
+			""";
+		var script = CompileScript(scriptText);
+		var control = new GuiControl("ctrl", script);
+
+		//Act
+		control.Awaken();
+
+		//Assert
+		Assert.True(_scriptManager.GlobalVariables["shown"].GetValue<bool>());
+	}
+
+	[Fact]
+	public void Given_hidden_gui_control_When_awakened_Then_onshow_is_not_called()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function ctrl.onShow() {
+							shown = true;
+						}
+			""";
+		var script = CompileScript(scriptText);
+		var control = new GuiControl("ctrl", script) { Visible = false };
+
+		//Act
+		control.Awaken();
+
+		//Assert
+		Assert.False(_scriptManager.GlobalVariables.ContainsVariable("shown"));
 	}
 
 	[Fact]

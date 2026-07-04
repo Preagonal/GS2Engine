@@ -13,6 +13,8 @@ public class GuiControlProfileProperties : ScriptProperties<GuiControlProfile>
 			{ "autosizewidth", "", profile => profile.AutoSizeWidth, (profile, value) => profile.AutoSizeWidth = value },
 			{ "backgroundinset", "", profile => profile.BackgroundInset, (profile, value) => profile.BackgroundInset = value },
 			{ "bitmap", "", profile => profile.Bitmap, (profile, value) => profile.Bitmap = value },
+			{ "bevelcolorhl", "", profile => profile.BevelColorHl, (profile, value) => profile.BevelColorHl = value },
+			{ "bevelcolorll", "", profile => profile.BevelColorLl, (profile, value) => profile.BevelColorLl = value },
 			{ "border", "", profile => profile.Border, (profile, value) => profile.Border = value },
 			{ "bordercolor", "", profile => profile.BorderColor, (profile, value) => profile.BorderColor = value },
 			{ "bordercolorhl", "", profile => profile.BorderColorHl, (profile, value) => profile.BorderColorHl = value },

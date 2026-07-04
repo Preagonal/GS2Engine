@@ -198,20 +198,34 @@ public static class Tools
 	{
 		if (!DEBUG_ON) return;
 
-		if (DebugFuncWrite != null)
-			DebugFuncWrite(text);
-		else
+		try
+		{
+			if (DebugFuncWrite != null)
+				DebugFuncWrite(text);
+			else
+				Console.Write(text);
+		}
+		catch (InvalidOperationException)
+		{
 			Console.Write(text);
+		}
 	}
 
 	public static void DebugLine(string? text)
 	{
 		if (!DEBUG_ON) return;
 
-		if (DebugFuncWriteLine != null)
-			DebugFuncWriteLine(text);
-		else
+		try
+		{
+			if (DebugFuncWriteLine != null)
+				DebugFuncWriteLine(text);
+			else
+				Console.WriteLine(text);
+		}
+		catch (InvalidOperationException)
+		{
 			Console.WriteLine(text);
+		}
 	}
 
 	public static string Format(string? format, params object?[] parameters)

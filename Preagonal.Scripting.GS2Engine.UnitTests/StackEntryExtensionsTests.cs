@@ -8,6 +8,20 @@ namespace Preagonal.Scripting.GS2Engine.UnitTests;
 public class StackEntryExtensionsTests
 {
 	[Fact]
+	public void When_input_is_null_Then_return_StackEntry_with_type_number_and_value_zero()
+	{
+		//Arrange
+		object? val = null;
+
+		//Act
+		var test = val.ToStackEntry();
+
+		//Assert
+		Assert.Equal(StackEntryType.Number, test.Type);
+		Assert.Equal(0.0d, test.GetValue<double>());
+	}
+
+	[Fact]
 	public void When_input_is_int_Then_return_StackEntry_with_type_number_and_value_type_double()
 	{
 		//Arrange

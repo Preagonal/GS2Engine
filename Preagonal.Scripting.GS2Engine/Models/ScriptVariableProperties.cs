@@ -1,5 +1,7 @@
 namespace Preagonal.Scripting.GS2Engine.Models;
 
+using Preagonal.Scripting.GS2Engine.GS2.Script;
+
 public class ScriptVariableProperties : ScriptProperties<ScriptVariable>
 {
 	public ScriptVariableProperties() : base(null)
@@ -22,7 +24,12 @@ public class ScriptVariableProperties : ScriptProperties<ScriptVariable>
 					(variable, args) =>
 					{
 						if (args.Length > 0)
-							variable.Join(args[0].GetValue()?.ToString() ?? string.Empty);
+						{
+							var className = args[0].GetValue()?.ToString() ?? string.Empty;
+							variable.Join(className);
+							if (variable is Script script)
+								script.ScriptManager.RequestClassScript(className);
+						}
 
 						return 0;
 					}

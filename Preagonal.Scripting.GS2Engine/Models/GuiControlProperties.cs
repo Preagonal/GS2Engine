@@ -18,6 +18,9 @@ public class GuiControlProperties : ScriptProperties<GuiControl>
 		propertyDefinitions.Add("bitmapcache", "", control => control.BitmapCache, (control, bitmapCache) => control.BitmapCache = bitmapCache);
 		propertyDefinitions.Add("blue", "", control => control.Blue, (control, blue) => control.Blue = blue);
 		propertyDefinitions.Add("bounds", "", control => control.Bounds, (control, bounds) => control.Bounds = bounds);
+		propertyDefinitions.Add("canclose", "", control => control.CanClose, (control, canClose) => control.CanClose = canClose);
+		propertyDefinitions.Add("canmaximize", "", control => control.CanMaximize, (control, canMaximize) => control.CanMaximize = canMaximize);
+		propertyDefinitions.Add("canminimize", "", control => control.CanMinimize, (control, canMinimize) => control.CanMinimize = canMinimize);
 		propertyDefinitions.Add("canmove", "", control => control.CanMove, (control, canMove) => control.CanMove = canMove);
 		propertyDefinitions.Add("canresize", "", control => control.CanResize, (control, canResize) => control.CanResize = canResize);
 		propertyDefinitions.Add("clientextent", "", control => control.ClientExtent, (control, clientExtent) => control.ClientExtent = clientExtent);
@@ -41,12 +44,15 @@ public class GuiControlProperties : ScriptProperties<GuiControl>
 		propertyDefinitions.Add("hint", "", control => control.Hint, (control, hint) => control.Hint = hint);
 		propertyDefinitions.Add("hinttime", "", control => control.HintTime, (control, hintTime) => control.HintTime = hintTime);
 		propertyDefinitions.Add("horizsizing", "", control => control.HorizSizing, (control, horizSizing) => control.HorizSizing = horizSizing);
+		propertyDefinitions.Add("isexternal", "", control => control.IsExternal, (control, isExternal) => control.IsExternal = isExternal);
 		propertyDefinitions.Add("isinanimation", "", control => control.IsInAnimation, (control, isInAnimation) => control.IsInAnimation = isInAnimation);
 		propertyDefinitions.Add("isininoutanimation", "", control => control.IsInInOutAnimation, (control, isInInOutAnimation) => control.IsInInOutAnimation = isInInOutAnimation);
 		propertyDefinitions.Add("lockmousedown", "", control => control.LockMouseDown, (control, lockMouseDown) => control.LockMouseDown = lockMouseDown);
+		propertyDefinitions.Add("maximized", "", control => control.Maximized, (control, maximized) => control.Maximized = maximized);
 		propertyDefinitions.Add("vertsizing", "", control => control.VertSizing, (control, vertSizing) => control.VertSizing = vertSizing);
 		propertyDefinitions.Add("minextent", "", control => control.MinExtent, (control, minExtent) => control.MinExtent = minExtent);
 		propertyDefinitions.Add("minsize", "", control => control.MinSize, (control, minSize) => control.MinSize = minSize);
+		propertyDefinitions.Add("modal", "", control => control.Modal, (control, modal) => control.Modal = modal);
 		propertyDefinitions.Add<object?>("parent", "", control => control.Parent);
 		propertyDefinitions.Add("position", "", control => control.Position, (control, position) => control.Position = position);
 		propertyDefinitions.Add<object?>("profile", "", control => control.Profile, (control, profile) => control.Profile = GetValue(profile));

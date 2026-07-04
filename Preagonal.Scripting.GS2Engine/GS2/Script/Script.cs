@@ -741,7 +741,7 @@ public class Script : ScriptVariable
 		}
 		catch (Exception e)
 		{
-			Console.WriteLine(e.Message);
+			Console.WriteLine($"Error calling {Name}.{eventName}: {e}");
 		}
 
 		return 0.ToStackEntry();

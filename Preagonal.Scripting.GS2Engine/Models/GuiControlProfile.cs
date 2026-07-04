@@ -14,6 +14,8 @@ public class GuiControlProfile : ScriptVariable
 	public bool   AutoSizeWidth         { get; set; }
 	public string BackgroundInset       { get; set; } = string.Empty;
 	public string Bitmap                { get; set; } = string.Empty;
+	public string BevelColorHl          { get; set; } = string.Empty;
+	public string BevelColorLl          { get; set; } = string.Empty;
 	public int    Border                { get; set; }
 	public string BorderColor           { get; set; } = string.Empty;
 	public string BorderColorHl         { get; set; } = string.Empty;
@@ -63,14 +65,16 @@ public class GuiControlProfile : ScriptVariable
 	public double Transparency          { get; set; } = 1;
 	public bool   FontPreloaded         { get; private set; }
 
-		public void CopyFrom(GuiControlProfile source)
-		{
-			Align                 = source.Align;
-			Justify               = source.Align;
-			AutoSizeHeight        = source.AutoSizeHeight;
-			AutoSizeWidth         = source.AutoSizeWidth;
+	public void CopyFrom(GuiControlProfile source)
+	{
+		Align                 = source.Align;
+		Justify               = source.Justify;
+		AutoSizeHeight        = source.AutoSizeHeight;
+		AutoSizeWidth         = source.AutoSizeWidth;
 		BackgroundInset       = source.BackgroundInset;
 		Bitmap                = source.Bitmap;
+		BevelColorHl          = source.BevelColorHl;
+		BevelColorLl          = source.BevelColorLl;
 		Border                = source.Border;
 		BorderColor           = source.BorderColor;
 		BorderColorHl         = source.BorderColorHl;
@@ -114,11 +118,11 @@ public class GuiControlProfile : ScriptVariable
 		SoundButtonOver       = source.SoundButtonOver;
 		Tab                   = source.Tab;
 		TextGradient          = source.TextGradient;
-			TextOffset            = source.TextOffset;
-			TextShadow            = source.TextShadow;
-			Transparency          = source.Transparency;
-			FontPreloaded         = source.FontPreloaded;
-		}
+		TextOffset            = source.TextOffset;
+		TextShadow            = source.TextShadow;
+		Transparency          = source.Transparency;
+		FontPreloaded         = source.FontPreloaded;
+	}
 
 	public int GetTextWidth(string text) => text.Length * Math.Max(FontSize, 1) / 2;
 	public int GetTextHeight() => Math.Max(FontSize, 1);

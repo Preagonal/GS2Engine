@@ -18,6 +18,7 @@ public static class StackEntryExtensions
 	{
 		return stackObject switch
 		{
+			null => 0.0d,
 			string => (TString)(stackObject?.ToString() ?? string.Empty),
 			TString => stackObject,
 			int i => (double)i,
@@ -31,6 +32,9 @@ public static class StackEntryExtensions
 
 	private static StackEntryType GetStackEntryType(object? stackObject)
 	{
+		if (stackObject == null)
+			return StackEntryType.Number;
+
 		var stackType = stackObject?.GetType();
 		switch (Type.GetTypeCode(stackType))
 		{

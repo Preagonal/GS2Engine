@@ -15,6 +15,7 @@ public class ScriptManager : IScriptManager
 	public static      Dictionary<string, IScriptProperties>        GlobalProperties { get; } = [];
 	public             ScriptVariable                               GlobalVariables  { get; } = new();
 	private readonly   Dictionary<string, ScriptObjectCreator>      _objectCreators  = new(StringComparer.OrdinalIgnoreCase);
+	private            Action<string>?                              _classScriptRequestHandler;
 
 	public ScriptManager(ILogger<ScriptManager> logger)
 	{
@@ -48,6 +49,16 @@ public class ScriptManager : IScriptManager
 	public void RegisterObjectCreator(string typeName, ScriptObjectCreator creator) =>
 		_objectCreators[typeName] = creator;
 
+	public void SetClassScriptRequestHandler(Action<string>? handler) =>
+		_classScriptRequestHandler = handler;
+
+	public void RequestClassScript(string className)
+	{
+		if (string.IsNullOrWhiteSpace(className)) return;
+
+		_classScriptRequestHandler?.Invoke(className);
+	}
+
 	public bool TryCreateObject(string typeName, string objectName, Script script, out ScriptVariable? createdObject)
 	{
 		var normalizedObjectName = objectName.ToLowerInvariant();
@@ -62,6 +73,15 @@ public class ScriptManager : IScriptManager
 		if (_objectCreators.TryGetValue(typeName, out var creator))
 		{
 			createdObject = creator(objectName, script);
+			if (!string.IsNullOrWhiteSpace(objectName) && createdObject != null)
+				RegisterGlobalObject(objectName, createdObject);
+			return true;
+		}
+
+		if (TryCreateProfile(typeName, objectName, out createdObject))
+		{
+			if (!string.IsNullOrWhiteSpace(objectName) && createdObject != null)
+				RegisterGlobalObject(objectName, createdObject);
 			return true;
 		}
 
@@ -124,9 +144,43 @@ public class ScriptManager : IScriptManager
 			.Cast<GuiControl>()
 			.ToList();
 
+	private bool TryCreateProfile(string typeName, string objectName, out ScriptVariable? createdObject)
+	{
+		if (!typeName.EndsWith("Profile", StringComparison.OrdinalIgnoreCase))
+		{
+			createdObject = null;
+			return false;
+		}
+
+		var profile = CreateGuiControlProfile(objectName, copyDefaultProfile: true);
+		if (GlobalVariables.TryGetVariable(typeName.ToLowerInvariant(), out var templateEntry) &&
+		    templateEntry?.GetValue<GuiControlProfile>() is { } template)
+		{
+			profile.CopyFrom(template);
+		}
+
+		createdObject = profile;
+		return true;
+	}
+
 	private void RegisterDefaultObjectCreators()
 	{
 		RegisterObjectCreator("GuiControl", (id, script) => new GuiControl(id, script));
-		RegisterObjectCreator("GuiControlProfile", (id, _) => new GuiControlProfile(id));
+		RegisterObjectCreator("GuiControlProfile", (id, _) => CreateGuiControlProfile(id, copyDefaultProfile: true));
+	}
+
+	private GuiControlProfile CreateGuiControlProfile(string objectName, bool copyDefaultProfile)
+	{
+		var profile = new GuiControlProfile(objectName);
+		if (!copyDefaultProfile ||
+		    objectName.Equals("GuiDefaultProfile", StringComparison.OrdinalIgnoreCase) ||
+		    !GlobalVariables.TryGetVariable("guidefaultprofile", out var defaultEntry) ||
+		    defaultEntry?.GetValue<GuiControlProfile>() is not { } defaultProfile)
+		{
+			return profile;
+		}
+
+		profile.CopyFrom(defaultProfile);
+		return profile;
 	}
 }

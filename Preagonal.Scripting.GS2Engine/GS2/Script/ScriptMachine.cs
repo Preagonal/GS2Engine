@@ -94,6 +94,9 @@ public class ScriptMachine
 		void StoreCallStackRegister(double registerIndex, IStackEntry entry) =>
 			callStackRegisters[ToScriptInt(registerIndex)] = CopyStackEntry(entry);
 
+		IStackEntry PopOrZero() => stack.Count > 0 ? stack.Pop() : 0.ToStackEntry();
+		IStackEntry PopOrEmptyString() => stack.Count > 0 ? stack.Pop() : string.Empty.ToStackEntry();
+
 		Tools.DebugLine($"Starting to execute function \"{_script.Name}.{functionName}\"");
 		while (index < _script.Bytecode.Length)
 		{
@@ -170,7 +173,7 @@ public class ScriptMachine
 					curIndex = stack.Count;
 					if (curIndex < 0) return 1.ToStackEntry();
 
-					var ifCompVar = GetEntry(stack.Pop()).GetValue();
+					var ifCompVar = GetEntry(PopOrZero()).GetValue();
 					var ifCompare = IsScriptTruthy(ifCompVar);
 
 					if (!ifCompare)
@@ -199,7 +202,7 @@ public class ScriptMachine
 
 					break;
 				case Opcode.OP_CALL:
-					var rawCallEntry  = stack.Pop();
+					var rawCallEntry  = PopOrZero();
 					var callEntry     = GetEntry(rawCallEntry, returnStackEntryIfNotFound: true);
 					var cmd           = GetEntryValue<object>(callEntry, returnStackEntryIfNotFound: true);
 					var rawCommand    = rawCallEntry.Type is StackEntryType.String or Variable
@@ -409,17 +412,17 @@ public class ScriptMachine
 						stack.Pop();
 					break;
 				case Opcode.OP_CONV_TO_FLOAT:
-					stack.Push(ConvertToFloatEntry(stack.Pop(), opWith));
+					stack.Push(ConvertToFloatEntry(PopOrZero(), opWith));
 					break;
 				case Opcode.OP_CONV_TO_STRING:
-					stack.Push(ConvertToStringEntry(stack.Pop(), opWith));
+					stack.Push(ConvertToStringEntry(PopOrZero(), opWith));
 					break;
 				case Opcode.OP_MEMBER_ACCESS:
-					var stackVal          = stack.Pop();
+					var stackVal          = PopOrZero();
 					var memberAccessParam = GetEntryValue<TString>(stackVal, StackEntryType.String);
 					try
 					{
-						if (stack.Peek()?.Type == StackEntryType.Array)
+						if (stack.Count > 0 && stack.Peek()?.Type == StackEntryType.Array)
 						{
 							try
 							{
@@ -455,7 +458,7 @@ public class ScriptMachine
 						}
 
 
-						if (stack.Peek()?.Type == StackEntryType.Script)
+						if (stack.Count > 0 && stack.Peek()?.Type == StackEntryType.Script)
 						{
 							var scriptStackEntry     = stack.Pop();
 							var scriptObject         = scriptStackEntry.GetValue<Script>();
@@ -484,7 +487,7 @@ public class ScriptMachine
 						}
 
 
-						var memberAccessEntry  = GetEntry(stack.Pop());
+						var memberAccessEntry  = GetEntry(PopOrZero());
 						var memberAccessScript = memberAccessEntry.GetValue<Script>();
 						if (TryGetPublicScriptFunction(memberAccessScript, memberAccessParam ?? string.Empty, out var resolvedMemberCommand))
 						{
@@ -509,7 +512,7 @@ public class ScriptMachine
 					}
 					break;
 				case Opcode.OP_CONV_TO_OBJECT:
-					stack.Push(ConvertToObjectEntry(stack.Pop(), opWith));
+					stack.Push(ConvertToObjectEntry(PopOrZero(), opWith));
 					break;
 				case Opcode.OP_ARRAY_END:
 
@@ -520,7 +523,8 @@ public class ScriptMachine
 						var arrayEntry = ResolveReadableScriptProperty(ResolveEntryForRead(stack.Pop(), opWith));
 						stackArr.Add(arrayEntry.GetValue() ?? 0);
 					}
-					stack.Pop(); //pop array start marker off
+					if (stack.Count > 0)
+						stack.Pop(); //pop array start marker off
 
 					stack.Push(new StackEntry(StackEntryType.Array, stackArr)); //push new array onto stack
 					break;
@@ -601,8 +605,8 @@ public class ScriptMachine
 						stack.Push(GetEntry(stack.Pop(), returnStackEntryIfNotFound: true));
 					break;
 				case Opcode.OP_ASSIGN:
-					var val      = stack.Pop();
-					var variable = (stack.Count == 0 ? opCopy : /*GetEntry*/(stack.Pop())) ?? 0.ToStackEntry();
+					var val      = PopOrZero();
+					var variable = (stack.Count == 0 ? opCopy : /*GetEntry*/(PopOrZero())) ?? 0.ToStackEntry();
 					AssignValue(variable, val, opWith);
 					break;
 				case Opcode.OP_FUNC_PARAMS_END:
@@ -736,7 +740,7 @@ public class ScriptMachine
 				case Opcode.OP_UNKNOWN_225:
 				case Opcode.OP_UNKNOWN_226:
 				case Opcode.OP_UNKNOWN_227:
-					var optimizedCompareLeft  = ResolveEntryForComparison(stack.Pop(), opWith);
+					var optimizedCompareLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
 					var optimizedCompareRight = ResolveReadableScriptProperty(op.Value.ToStackEntry());
 					var optimizedCompare      = CompareScriptValues(optimizedCompareLeft, optimizedCompareRight);
 					stack.Push(IsOptimizedImmediateComparisonTrue(op.OpCode, optimizedCompare).ToStackEntry());
@@ -791,46 +795,46 @@ public class ScriptMachine
 					break;
 				case Opcode.OP_UNKNOWN_66:
 				case Opcode.OP_UNKNOWN_67:
-					var optimizedLogicalRight     = ToScriptDouble(GetEntry(stack.Pop(), returnStackEntryIfNotFound: true).GetValue());
-					var optimizedLogicalStackLeft = ToScriptDouble(GetEntry(stack.Pop(), returnStackEntryIfNotFound: true).GetValue());
+					var optimizedLogicalRight     = ToScriptDouble(GetEntry(PopOrZero(), returnStackEntryIfNotFound: true).GetValue());
+					var optimizedLogicalStackLeft = ToScriptDouble(GetEntry(PopOrZero(), returnStackEntryIfNotFound: true).GetValue());
 					stack.Push(CalculateOptimizedLogical(op.OpCode, optimizedLogicalStackLeft, optimizedLogicalRight).ToStackEntry());
 					break;
 				case Opcode.OP_NOT:
-					var notVar = ToScriptDouble(ResolveEntryForComparison(stack.Pop(), opWith).GetValue());
+					var notVar = ToScriptDouble(ResolveEntryForComparison(PopOrZero(), opWith).GetValue());
 
 					stack.Push((notVar == 0 ? true : false).ToStackEntry());
 					break;
 				case Opcode.OP_UNARYSUB:
-					stack.Push((-GetEntryValue<double>(stack.Pop())).ToStackEntry());
+					stack.Push((-GetEntryValue<double>(PopOrZero())).ToStackEntry());
 					break;
 				case Opcode.OP_EQ:
-					var eqRight = ResolveEntryForComparison(stack.Pop(), opWith);
-					var eqLeft  = ResolveEntryForComparison(stack.Pop(), opWith);
+					var eqRight = ResolveEntryForComparison(PopOrZero(), opWith);
+					var eqLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
 					stack.Push(ScriptEntriesEqual(eqLeft, eqRight).ToStackEntry());
 					break;
 				case Opcode.OP_NEQ:
-					var neqRight = ResolveEntryForComparison(stack.Pop(), opWith);
-					var neqLeft  = ResolveEntryForComparison(stack.Pop(), opWith);
+					var neqRight = ResolveEntryForComparison(PopOrZero(), opWith);
+					var neqLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
 					stack.Push((!ScriptEntriesEqual(neqLeft, neqRight)).ToStackEntry());
 					break;
 				case Opcode.OP_LT:
-					var ltRight = ResolveEntryForComparison(stack.Pop(), opWith);
-					var ltLeft  = ResolveEntryForComparison(stack.Pop(), opWith);
+					var ltRight = ResolveEntryForComparison(PopOrZero(), opWith);
+					var ltLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
 					stack.Push((CompareScriptValues(ltLeft, ltRight) < 0).ToStackEntry());
 					break;
 				case Opcode.OP_GT:
-					var gtRight = ResolveEntryForComparison(stack.Pop(), opWith);
-					var gtLeft  = ResolveEntryForComparison(stack.Pop(), opWith);
+					var gtRight = ResolveEntryForComparison(PopOrZero(), opWith);
+					var gtLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
 					stack.Push((CompareScriptValues(gtLeft, gtRight) > 0).ToStackEntry());
 					break;
 				case Opcode.OP_LTE:
-					var lteRight = ResolveEntryForComparison(stack.Pop(), opWith);
-					var lteLeft  = ResolveEntryForComparison(stack.Pop(), opWith);
+					var lteRight = ResolveEntryForComparison(PopOrZero(), opWith);
+					var lteLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
 					stack.Push((CompareScriptValues(lteLeft, lteRight) <= 0).ToStackEntry());
 					break;
 				case Opcode.OP_GTE:
-					var gteRight = ResolveEntryForComparison(stack.Pop(), opWith);
-					var gteLeft  = ResolveEntryForComparison(stack.Pop(), opWith);
+					var gteRight = ResolveEntryForComparison(PopOrZero(), opWith);
+					var gteLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
 					stack.Push((CompareScriptValues(gteLeft, gteRight) >= 0).ToStackEntry());
 					break;
 				case Opcode.OP_BWO:
@@ -895,17 +899,17 @@ public class ScriptMachine
 					stack.Push(GetScriptObjectType(GetEntry(stack.Pop(), returnStackEntryIfNotFound: true)).ToStackEntry());
 					break;
 				case Opcode.OP_FORMAT:
-					var format  = stack.Pop();
+					var format  = stack.Count > 0 ? stack.Pop() : string.Empty.ToStackEntry();
 					var objects = stack.Select(x => GetEntryValue<object>(x)).ToArray();
 					stack.Clear();
 					var formatted = Tools.Format(GetEntryValue<TString>(format) ?? "", objects);
 					stack.Push(formatted.ToStackEntry());
 					break;
 				case Opcode.OP_INT:
-					stack.Push(ToScriptInt(GetEntryValue<double>(stack.Pop())).ToStackEntry());
+					stack.Push(ToScriptInt(GetEntryValue<double>(PopOrZero())).ToStackEntry());
 					break;
 				case Opcode.OP_ABS:
-					stack.Push(Math.Abs(GetEntryValue<double>(stack.Pop())).ToStackEntry());
+					stack.Push(Math.Abs(GetEntryValue<double>(PopOrZero())).ToStackEntry());
 					break;
 				case Opcode.OP_RANDOM:
 					var randomEnd   = GetEntryValue<double>(stack.Pop());
@@ -982,7 +986,7 @@ public class ScriptMachine
 					stack.Push(vecyVal.ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_INDICES:
-					var indicesTarget = GetEntry(stack.Pop(), returnStackEntryIfNotFound: true);
+					var indicesTarget = GetEntry(PopOrZero(), returnStackEntryIfNotFound: true);
 					var indicesValues = GetArrayValues(indicesTarget.GetValue());
 					var indices = new List<object?>();
 					if (indicesValues != null)
@@ -993,56 +997,56 @@ public class ScriptMachine
 					stack.Push(indices.ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_LINK:
-					var linkTarget = GetEntry(stack.Pop(), returnStackEntryIfNotFound: true);
+					var linkTarget = GetEntry(PopOrZero(), returnStackEntryIfNotFound: true);
 					stack.Push(new LinkedStackEntry(linkTarget));
 					break;
 				case Opcode.OP_OBJ_COMPARE:
-					var compareRight = GetEntry(stack.Pop(), returnStackEntryIfNotFound: true);
-					var compareLeft = GetEntry(stack.Pop(), returnStackEntryIfNotFound: true);
+					var compareRight = GetEntry(PopOrZero(), returnStackEntryIfNotFound: true);
+					var compareLeft = GetEntry(PopOrZero(), returnStackEntryIfNotFound: true);
 					stack.Push(CompareScriptValues(compareLeft, compareRight).ToStackEntry());
 					break;
 				case Opcode.OP_CHAR:
-					stack.Push(((char)ToScriptInt(GetEntryValue<double>(stack.Pop()))).ToString().ToStackEntry());
+					stack.Push(((char)ToScriptInt(GetEntryValue<double>(PopOrZero()))).ToString().ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_TRIM:
-					stack.Push((GetEntryValue<TString>(stack.Pop())?.ToString().Trim() ?? string.Empty).ToStackEntry());
+					stack.Push((GetEntryValue<TString>(PopOrEmptyString())?.ToString().Trim() ?? string.Empty).ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_LENGTH:
-					stack.Push((GetEntryValue<TString>(stack.Pop())?.ToString().Length ?? 0).ToStackEntry());
+					stack.Push((GetEntryValue<TString>(PopOrEmptyString())?.ToString().Length ?? 0).ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_POS:
-					var objPosNeedle = GetEntryValue<TString>(stack.Pop())?.ToString() ?? string.Empty;
-					var objPosHaystack = GetEntryValue<TString>(stack.Pop())?.ToString() ?? string.Empty;
+					var objPosNeedle = GetEntryValue<TString>(PopOrEmptyString())?.ToString() ?? string.Empty;
+					var objPosHaystack = GetEntryValue<TString>(PopOrEmptyString())?.ToString() ?? string.Empty;
 					stack.Push(objPosHaystack.IndexOf(objPosNeedle, StringComparison.Ordinal).ToStackEntry());
 					break;
 				case Opcode.OP_JOIN:
-					var joinA = GetEntryValue<TString>(stack.Pop());
-					var joinB = GetEntryValue<TString>(stack.Pop());
+					var joinA = GetEntryValue<TString>(stack.Count > 0 ? stack.Pop() : string.Empty.ToStackEntry());
+					var joinB = GetEntryValue<TString>(stack.Count > 0 ? stack.Pop() : string.Empty.ToStackEntry());
 					stack.Push($"{joinB}{joinA}".ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_CHARAT:
-					var charAtIndex = ToScriptInt(GetEntryValue<double>(stack.Pop()));
-					var charAtValue = GetEntryValue<TString>(stack.Pop())?.ToString() ?? string.Empty;
+					var charAtIndex = ToScriptInt(GetEntryValue<double>(PopOrZero()));
+					var charAtValue = GetEntryValue<TString>(PopOrEmptyString())?.ToString() ?? string.Empty;
 					stack.Push((charAtIndex >= 0 && charAtIndex < charAtValue.Length
 						? charAtValue[charAtIndex].ToString()
 						: string.Empty).ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_SUBSTR:
-					var subStrLen = ToScriptInt(GetEntryValue<double>(stack.Pop()));
-					var subStrStart = ToScriptInt(GetEntryValue<double>(stack.Pop()));
-					var subStr = GetEntryValue<TString>(stack.Pop())?.ToString() ?? string.Empty;
+					var subStrLen = ToScriptInt(GetEntryValue<double>(PopOrZero()));
+					var subStrStart = ToScriptInt(GetEntryValue<double>(PopOrZero()));
+					var subStr = GetEntryValue<TString>(PopOrEmptyString())?.ToString() ?? string.Empty;
 					stack.Push(GetScriptSubstring(subStr, subStrStart, subStrLen).ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_STARTS:
-					var obj = GetEntryValue<TString>(stack.Pop()) ?? "";
-					var startsWith = GetEntryValue<TString>(stack.Pop()) ?? "";
+					var obj = GetEntryValue<TString>(PopOrEmptyString()) ?? "";
+					var startsWith = GetEntryValue<TString>(PopOrEmptyString()) ?? "";
 					stack.Push(
 						obj.StartsWith(startsWith, StringComparison.CurrentCultureIgnoreCase).ToStackEntry()
 					);
 					break;
 				case Opcode.OP_OBJ_ENDS:
-					var endsNeedle = GetEntryValue<TString>(stack.Pop()) ?? "";
-					var endsValue = GetEntryValue<TString>(stack.Pop()) ?? "";
+					var endsNeedle = GetEntryValue<TString>(PopOrEmptyString()) ?? "";
+					var endsValue = GetEntryValue<TString>(PopOrEmptyString()) ?? "";
 					stack.Push(endsValue.ToString().EndsWith(endsNeedle.ToString(), StringComparison.CurrentCultureIgnoreCase).ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_TOKENIZE:
@@ -1054,8 +1058,8 @@ public class ScriptMachine
 					stack.Push((GetEntryValue<TString>(stack.Pop())?.ToString() ?? string.Empty).ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_POSITIONS:
-					var positionsNeedle = GetEntryValue<TString>(stack.Pop())?.ToString() ?? string.Empty;
-					var positionsValue = GetEntryValue<TString>(stack.Pop())?.ToString() ?? string.Empty;
+					var positionsNeedle = GetEntryValue<TString>(PopOrEmptyString())?.ToString() ?? string.Empty;
+					var positionsValue = GetEntryValue<TString>(PopOrEmptyString())?.ToString() ?? string.Empty;
 					stack.Push(positionsValue.PositionsOf(positionsNeedle).Cast<object?>().ToStackEntry());
 					break;
 				case Opcode.OP_DYNAMIC_ADD:

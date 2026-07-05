@@ -20,6 +20,7 @@ public class Script : ScriptVariable
 	public override            IScriptProperties                  Properties => PropertiesInstance;
 	private readonly           List<TString>                      _strings  = [];
 	private readonly           Dictionary<string, Dictionary<Script, string>> _eventCatchers = new(StringComparer.OrdinalIgnoreCase);
+	private readonly           object                             _functionsLock = new();
 	public readonly            Dictionary<string, FunctionParams> Functions = new();
 	private                    ScriptCom[]                        _bytecode = [];
 	public readonly            ScriptVariable?                    RefObject = null;
@@ -123,7 +124,8 @@ public class Script : ScriptVariable
 	private void Reset()
 	{
 		Machine.Reset();
-		Functions.Clear();
+		lock (_functionsLock)
+			Functions.Clear();
 		_bytecode = [];
 		_strings.Clear();
 		Clear();
@@ -369,8 +371,11 @@ public class Script : ScriptVariable
 		*/
 	}
 
-	private void AddFunction(TString functionName, int pos, bool isPublic) =>
-		Functions.Add(functionName.ToString().ToLowerInvariant(), new() { BytecodePosition = pos, IsPublic = isPublic });
+	private void AddFunction(TString functionName, int pos, bool isPublic)
+	{
+		lock (_functionsLock)
+			Functions[functionName.ToString().ToLowerInvariant()] = new() { BytecodePosition = pos, IsPublic = isPublic };
+	}
 
 	private void OnScriptUpdated()
 	{
@@ -661,15 +666,21 @@ public class Script : ScriptVariable
 		}
 	}
 
-	private IEnumerable<string> GetObjectEventFunctionNames(string objectPrefix) =>
-		Functions.Keys
-		         .Where(functionName =>
-		         {
-			         if (!functionName.StartsWith(objectPrefix, StringComparison.OrdinalIgnoreCase)) return false;
-			         var eventName = functionName[objectPrefix.Length..];
-			         return eventName.StartsWith("on", StringComparison.OrdinalIgnoreCase);
-		         })
-		         .ToArray();
+	private IEnumerable<string> GetObjectEventFunctionNames(string objectPrefix)
+	{
+		string[] functionNames;
+		lock (_functionsLock)
+			functionNames = Functions.Keys.ToArray();
+
+		return functionNames
+		       .Where(functionName =>
+		       {
+			       if (!functionName.StartsWith(objectPrefix, StringComparison.OrdinalIgnoreCase)) return false;
+			       var eventName = functionName[objectPrefix.Length..];
+			       return eventName.StartsWith("on", StringComparison.OrdinalIgnoreCase);
+		       })
+		       .ToArray();
+	}
 
 	private bool TryGetEventCatchers(string eventName, out KeyValuePair<Script, string>[] catchers)
 	{
@@ -721,7 +732,11 @@ public class Script : ScriptVariable
 		try
 		{
 			var entries = args?.Select(ToCallStackEntry).Where(entry => entry != null).Cast<IStackEntry>().ToArray();
-			if (Functions.ContainsKey(eventName.ToLowerInvariant()))
+			bool hasFunction;
+			lock (_functionsLock)
+				hasFunction = Functions.ContainsKey(eventName.ToLowerInvariant());
+
+			if (hasFunction)
 				return await Execute(eventName, BuildCallStack(entries)).ConfigureAwait(false);
 
 			if (TryGetEventCatchers(eventName, out var catchers))

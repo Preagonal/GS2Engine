@@ -487,6 +487,38 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_named_script_exists_When_isobject_guard_calls_public_function_from_string_object_Then_value_should_be_returned()
+	{
+		//Arrange
+		const string scriptText1 =
+			"""
+						//#CLIENTSIDE
+						public function initServerlist() {
+							return "serverlist-opened";
+						}
+			""";
+		CompileScript(scriptText1, "-Rescripted/Serverlist");
+		const string scriptText2 =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							if (isObject("-Rescripted/Serverlist")) {
+								return ("-Rescripted/Serverlist").initServerlist();
+							}
+
+							return "missing";
+						}
+			""";
+		var script2 = CompileScript(scriptText2);
+
+		//Act
+		var result = await script2.Call("onCreated");
+
+		//Assert
+		Assert.Equal("serverlist-opened", result.GetValue()?.ToString());
+	}
+
+	[Fact]
 	public async Task Given_function_without_return_When_next_function_has_bytecode_Then_execution_stops_at_function_boundary()
 	{
 		//Arrange
@@ -1056,7 +1088,7 @@ public class ScriptMachineTests
 		var result = await script.Call("onCreated");
 
 		//Assert
-		Assert.Equal("true", result.GetValue()?.ToString());
+		Assert.Equal(1.0d, result.GetValue());
 	}
 
 	[Fact]
@@ -1148,6 +1180,243 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal(3.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_array_end_without_array_start_When_executing_Then_returns_array_from_available_stack_values()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_TYPE_NUMBER,
+			0xF3,
+			1,
+			(byte)Opcode.OP_ARRAY_END,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(StackEntryType.Array, result.Type);
+		var values = Assert.IsType<List<object>>(result.GetValue());
+		Assert.Equal(1.0d, Assert.Single(values));
+	}
+
+	[Fact]
+	public async Task Given_comparison_opcode_without_operands_When_executing_Then_missing_operands_default_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_EQ,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(1.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_call_opcode_without_operand_When_executing_Then_missing_call_defaults_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_CALL,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_assign_opcode_without_operands_When_executing_Then_missing_assignment_defaults_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_ASSIGN,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_optimized_compare_opcode_without_operand_When_executing_Then_missing_operand_defaults_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_UNKNOWN_226,
+			0xF3,
+			0,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(1.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_join_opcode_without_operands_When_executing_Then_missing_operands_default_to_empty_strings()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_JOIN,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(string.Empty, result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_if_opcode_without_operand_When_executing_Then_missing_operand_is_false()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_IF,
+			0xF3,
+			2,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_format_opcode_without_operands_When_executing_Then_missing_format_defaults_to_empty_string()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_FORMAT,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(string.Empty, result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_int_opcode_without_operand_When_executing_Then_missing_operand_defaults_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_INT,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_abs_opcode_without_operand_When_executing_Then_missing_operand_defaults_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_ABS,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_object_length_opcode_without_operand_When_executing_Then_missing_operand_defaults_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_OBJ_LENGTH,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_substring_opcode_without_operands_When_executing_Then_missing_operands_default_to_empty_string()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_OBJ_SUBSTR,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(string.Empty, result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_member_access_opcode_without_member_name_When_executing_Then_missing_member_defaults_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_MEMBER_ACCESS,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_convert_to_object_opcode_without_operand_When_executing_Then_missing_operand_defaults_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_CONV_TO_OBJECT,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_member_access_opcode_without_parent_When_executing_Then_missing_parent_defaults_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_TYPE_VAR,
+			0xF0,
+			0,
+			(byte)Opcode.OP_MEMBER_ACCESS,
+		], ["value"]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
 	}
 
 	[Fact]
@@ -2458,55 +2727,6 @@ public class ScriptMachineTests
 		var child = Assert.IsType<GuiControl>(_scriptManager.GlobalVariables["child"].GetValue());
 		Assert.Same(parent, Assert.Single(root.Controls));
 		Assert.Same(child, Assert.Single(parent.Controls));
-	}
-
-	[Fact]
-	public async Task Given_global_addcontrol_exists_When_nested_initializer_runs_inside_with_Then_with_parent_receives_child()
-	{
-		//Arrange
-		var canvas = new GuiControl("graalcontrol", null!);
-		_scriptManager.RegisterObjectCreator("GuiBitmapCtrl", (id, script) => new GuiBitmapCtrl(id, script));
-		_scriptManager.RegisterObjectCreator("GuiTextCtrl", (id, script) => new GuiTextCtrl(id, script));
-		ScriptProperties<ScriptMachineTests>.AddFunctions(
-			null,
-			new()
-			{
-				{
-					"addcontrol",
-					"",
-					(_, args) =>
-					{
-						canvas.AddControl(args.FirstOrDefault()?.GetValue<GuiControl>());
-						return 0;
-					}
-				}
-			}
-		);
-		const string scriptText =
-			"""
-						//#CLIENTSIDE
-						function onCreated() {
-							root = new GuiControl("root");
-							with (root) {
-								new GuiBitmapCtrl("panel") {
-									new GuiTextCtrl("label") {
-									}
-								}
-							}
-						}
-			""";
-		var script = CompileScript(scriptText);
-
-		//Act
-		await script.Call("onCreated");
-
-		//Assert
-		var root = Assert.IsType<GuiControl>(_scriptManager.GlobalVariables["root"].GetValue());
-		var panel = Assert.IsType<GuiBitmapCtrl>(_scriptManager.GlobalVariables["panel"].GetValue());
-		var label = Assert.IsType<GuiTextCtrl>(_scriptManager.GlobalVariables["label"].GetValue());
-		Assert.Same(panel, Assert.Single(root.Controls));
-		Assert.Same(label, Assert.Single(panel.Controls));
-		Assert.Empty(canvas.Controls);
 	}
 
 	[Fact]

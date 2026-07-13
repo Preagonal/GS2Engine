@@ -270,14 +270,8 @@ public class ScriptMachine
 						if (parameterEntryValue != null)
 							callParams.Add(parameterEntryValue.ToStackEntry());
 					}
-					var sourceCallParams = callParams.AsEnumerable().Reverse().ToList();
-					var sourceRawCallParams = rawCallParams.AsEnumerable().Reverse().ToList();
-					var orderedCallParams = _script.CallArgumentOrder == ScriptCallArgumentOrder.Original
-						? callParams
-						: sourceCallParams;
-					var orderedRawCallParams = _script.CallArgumentOrder == ScriptCallArgumentOrder.Original
-						? rawCallParams
-						: sourceRawCallParams;
+					var orderedCallParams    = callParams;
+					var orderedRawCallParams = rawCallParams;
 
 					while (stack.Count > 0 && stack.Peek().Type != ArrayStart) stack.Pop();
 					if (stack.Count > 0) stack.Pop();

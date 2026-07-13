@@ -17,19 +17,23 @@ public class ScriptManagerTests
 
 		using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
 		var writer = Task.Run(() =>
-		{
-			var index = 0;
-			while (!cancellation.IsCancellationRequested)
-				manager.RegisterGlobalVariable($"global{index++}", index);
-		});
+			{
+				var index = 0;
+				// ReSharper disable once AccessToDisposedClosure
+				while (!cancellation.IsCancellationRequested)
+					manager.RegisterGlobalVariable($"global{index++}", index);
+			},
+			cancellation.Token
+		);
 
 		var exception = Record.Exception(() =>
 		{
+			// ReSharper disable once AccessToDisposedClosure
 			while (!cancellation.IsCancellationRequested)
 				_ = manager.GetGlobalScripts();
 		});
 
-		cancellation.Cancel();
+		await cancellation.CancelAsync();
 		await writer;
 
 		Assert.Null(exception);

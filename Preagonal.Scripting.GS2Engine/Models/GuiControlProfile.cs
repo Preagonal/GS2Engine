@@ -2,12 +2,10 @@ using System;
 
 namespace Preagonal.Scripting.GS2Engine.Models;
 
-public class GuiControlProfile : ScriptVariable
+public class GuiControlProfile(string name = "") : ScriptVariable(name)
 {
 	public new static readonly GuiControlProfileProperties PropertiesInstance = [];
 	public override IScriptProperties Properties => PropertiesInstance;
-
-	public GuiControlProfile(string name = "") : base(name) { }
 
 	public string Align                 { get; set; } = "left";
 	public bool   AutoSizeHeight        { get; set; }

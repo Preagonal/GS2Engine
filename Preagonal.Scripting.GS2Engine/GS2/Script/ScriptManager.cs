@@ -20,6 +20,7 @@ public class ScriptManager : IScriptManager
 	public ScriptManager(ILogger<ScriptManager> logger)
 	{
 		_logger = logger;
+		_ = TString.PropertiesInstance;
 		RegisterDefaultObjectCreators();
 	}
 

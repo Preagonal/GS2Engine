@@ -9,6 +9,8 @@ namespace Preagonal.Scripting.GS2Engine;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class TString
 {
+	public static readonly Models.TStringProperties PropertiesInstance = [];
+
 	public  byte[] buffer = [];
 	private int    readc;
 	private int    writePos;

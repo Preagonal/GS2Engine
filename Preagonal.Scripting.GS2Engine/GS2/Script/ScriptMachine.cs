@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Preagonal.Scripting.GS2Engine.Enums;
 using Preagonal.Scripting.GS2Engine.Exceptions;
@@ -17,7 +16,12 @@ namespace Preagonal.Scripting.GS2Engine.GS2.Script;
 public class ScriptMachine
 {
 	private readonly Script          _script;
-	private readonly ScriptVariable  _tempVariables = new();
+	private readonly ScriptVariable  _rootTempVariables = new();
+	private readonly HashSet<string> _rootTempAliases = new(StringComparer.OrdinalIgnoreCase);
+	private readonly Stack<ScriptVariable> _tempFrames = new();
+	private readonly Stack<ScriptVariable> _localFrames = new();
+	private readonly Stack<HashSet<string>> _tempAliasFrames = new();
+	private readonly Stack<string>   _functionFrames = new();
 	private          ScriptVariable? _receiverOverride;
 
 	private ScriptVariable ThisObject => _receiverOverride ?? _script;
@@ -29,7 +33,6 @@ public class ScriptMachine
 
 	private bool _firstRun = true;
 	private int  _indexPos;
-	private int  _scriptStackSize;
 	private bool _useTemp;
 
 	public ScriptMachine(Script script)
@@ -38,24 +41,61 @@ public class ScriptMachine
 		registerOpcodeHandlers();
 	}
 
+	public ScriptVariable CurrentReceiver => ThisObject;
+
+	public Script CurrentScript => _script;
+
+	private ScriptVariable _tempVariables => _tempFrames.Count > 0 ? _tempFrames.Peek() : _rootTempVariables;
+
+	private ScriptVariable _localVariables => _localFrames.Count > 0 ? _localFrames.Peek() : _tempVariables;
+
+	private HashSet<string> _tempAliases => _tempAliasFrames.Count > 0 ? _tempAliasFrames.Peek() : _rootTempAliases;
+
+	private ScriptVariable CreateTempFrame()
+	{
+		var frame = new ScriptVariable();
+		frame.AddOrUpdate(_rootTempVariables);
+		return frame;
+	}
+
+	private HashSet<string> CreateTempAliasFrame() => new(_rootTempAliases, StringComparer.OrdinalIgnoreCase);
+
+	private string CurrentFunctionName => _functionFrames.Count > 0 ? _functionFrames.Peek() : string.Empty;
+
+	internal bool IsExecuting => _functionFrames.Count > 0;
+
 	private void registerOpcodeHandlers()
 	{
 
 	}
 
-	public async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? callStack = null, ScriptVariable? receiverOverride = null)
+	public async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? callStack = null, ScriptVariable? receiverOverride = null, bool inheritTempFrame = false)
 	{
-		if (receiverOverride == null)
-			return await ExecuteCore(functionName, callStack).ConfigureAwait(false);
-
 		var previousReceiver = _receiverOverride;
-		_receiverOverride = receiverOverride;
+		if (receiverOverride != null)
+			_receiverOverride = receiverOverride;
+
+		var pushTempFrame = !inheritTempFrame;
+		if (pushTempFrame)
+		{
+			_tempFrames.Push(CreateTempFrame());
+			_tempAliasFrames.Push(CreateTempAliasFrame());
+		}
+		_localFrames.Push(new ScriptVariable());
+		_functionFrames.Push(functionName.ToLowerInvariant());
 		try
 		{
 			return await ExecuteCore(functionName, callStack).ConfigureAwait(false);
 		}
 		finally
 		{
+			_functionFrames.Pop();
+			_localFrames.Pop();
+			if (pushTempFrame)
+			{
+				_tempAliasFrames.Pop();
+				_tempFrames.Pop();
+			}
 			_receiverOverride = previousReceiver;
 		}
 	}
@@ -63,11 +103,13 @@ public class ScriptMachine
 	private async Task<IStackEntry> ExecuteCore(string functionName, Stack<IStackEntry>? callStack)
 	{
 		var normalizedFunctionName = functionName.ToLowerInvariant();
+		Tools.DebugLine($"[SCRIPT] enter {_script.Name}.{normalizedFunctionName}");
 		if (!_script.Functions.TryGetValue(normalizedFunctionName, out var value))
 		{
 			if (TryGetJoinedClassFunction(ThisObject, normalizedFunctionName, out var joinedCommand))
 				return joinedCommand(this, callStack?.ToArray() ?? []);
 
+			Tools.DebugLine($"[SCRIPT] missing {_script.Name}.{normalizedFunctionName}");
 			return 0.ToStackEntry();
 		}
 
@@ -77,14 +119,17 @@ public class ScriptMachine
 			var desiredStart = value.BytecodePosition;
 			var functionEnd  = GetFunctionEnd(desiredStart);
 			var index        = _firstRun && !_script.HasOnlyFunctions ? 0 : value.BytecodePosition;
+			Tools.DebugLine($"[SCRIPT] range {normalizedFunctionName} start={desiredStart} end={functionEnd}");
 			if (_firstRun)
 				_firstRun = false;
 
-		//const int maxLoopCount = 10000; // TODO: FIX
+		const int maxLoopCount = 100000;
 
 		IStackEntry?                 opCopy             = null;
 		Stack<IStackEntry>           opWith             = new();
 		Dictionary<int, IStackEntry> callStackRegisters = new();
+		Dictionary<int, int>         loopCounts         = new();
+		string                       lastIncrement      = "<none>";
 
 		IStackEntry ReadCallStackRegister(double registerIndex) =>
 			callStackRegisters.TryGetValue(ToScriptInt(registerIndex), out var entry)
@@ -93,9 +138,14 @@ public class ScriptMachine
 
 		void StoreCallStackRegister(double registerIndex, IStackEntry entry) =>
 			callStackRegisters[ToScriptInt(registerIndex)] = CopyStackEntry(entry);
+		static Stack<IStackEntry> CreateCallStack(IEnumerable<IStackEntry> entries) => new(entries.Reverse());
 
 		IStackEntry PopOrZero() => stack.Count > 0 ? stack.Pop() : 0.ToStackEntry();
 		IStackEntry PopOrEmptyString() => stack.Count > 0 ? stack.Pop() : string.Empty.ToStackEntry();
+		IStackEntry PopOrCopyOrZero() => stack.Count > 0 ? stack.Pop() : opCopy ?? 0.ToStackEntry();
+		string DescribeEntry(IStackEntry? entry) => entry == null
+			? "<empty>"
+			: $"{entry.Type}:{Tools.ToScriptString(UnwrapScriptValue(entry.GetValue()))}";
 
 		Tools.DebugLine($"Starting to execute function \"{_script.Name}.{functionName}\"");
 		while (index < _script.Bytecode.Length)
@@ -108,7 +158,6 @@ public class ScriptMachine
 				_indexPos = index;
 
 			var op = _script.Bytecode[curIndex];
-
 			Tools.Debug($"OP: {op.OpCode}");
 			if (op.VariableName != null)
 				Tools.Debug($" - var: {op.VariableName}");
@@ -122,6 +171,7 @@ public class ScriptMachine
 				case Opcode.OP_NONE:
 					break;
 				case Opcode.OP_SET_INDEX:
+					Tools.DebugLine($"[SCRIPT] set_index target={op.Value} current={curIndex} functionEnd={functionEnd}");
 					// ReSharper disable once CompareOfFloatsByEqualityOperator
 					if (op.Value == _script.Bytecode.Length)
 					{
@@ -136,28 +186,20 @@ public class ScriptMachine
 					_indexPos = index;
 					break;
 				case Opcode.OP_SET_INDEX_TRUE:
-					curIndex = _scriptStackSize;
-					if (curIndex < 0) return 1.ToStackEntry();
-					var sitCompVar = GetEntry(stack.Pop()).GetValue();
+					var sitCompEntry = GetEntry(PopOrZero());
+					var sitCompVar = sitCompEntry.GetValue();
 					var sitCompare = IsScriptTruthy(sitCompVar);
+					Tools.DebugLine($"[SCRIPT] set_index_true target={op.Value} value={DescribeEntry(sitCompEntry)} truthy={sitCompare}");
 
-					if (!sitCompare)
+					if (sitCompare)
 					{
-						_scriptStackSize = curIndex + -1;
-					}
-					else
-					{
-						index            = (int)op.Value;
-						_scriptStackSize = curIndex + -1;
-						_indexPos        = index;
+						index     = (int)op.Value;
+						_indexPos = index;
 					}
 
 					break;
 				case Opcode.OP_OR:
-					curIndex = _scriptStackSize;
-					if (curIndex < 0) return 1.ToStackEntry();
-
-					var orCompEntry = GetEntry(stack.Pop(), returnStackEntryIfNotFound: true);
+					var orCompEntry = GetEntry(PopOrZero(), returnStackEntryIfNotFound: true);
 					var orCompVar   = orCompEntry.GetValue();
 					var orCompare   = IsScriptTruthy(orCompVar);
 
@@ -178,33 +220,32 @@ public class ScriptMachine
 
 					if (!ifCompare)
 					{
-						index            = (int)op.Value;
-						_scriptStackSize = curIndex + -1;
-						_indexPos        = index;
+						index     = (int)op.Value;
+						_indexPos = index;
 					}
 
 					break;
 				case Opcode.OP_AND:
-					curIndex = _scriptStackSize;
-					if (_scriptStackSize < 0) return 1.ToStackEntry();
-
-					var andCompEntry = GetEntry(stack.Pop(), returnStackEntryIfNotFound: true);
+					var andCompEntry = GetEntry(PopOrZero(), returnStackEntryIfNotFound: true);
 					var andCompVar   = andCompEntry.GetValue();
 					var andCompare   = IsScriptTruthy(andCompVar);
 
 					if (!andCompare)
 					{
-						index            = (int)op.Value;
-						_scriptStackSize = curIndex + -1;
-						_indexPos        = index;
+						index     = (int)op.Value;
+						_indexPos = index;
 						stack.Push(andCompEntry);
 					}
 
 					break;
 				case Opcode.OP_CALL:
 					var rawCallEntry  = PopOrZero();
-					var callEntry     = GetEntry(rawCallEntry, returnStackEntryIfNotFound: true);
-					var cmd           = GetEntryValue<object>(callEntry, returnStackEntryIfNotFound: true);
+					var callEntry     = rawCallEntry.Type == ScriptProperty
+						? rawCallEntry
+						: GetEntry(rawCallEntry, returnStackEntryIfNotFound: true);
+					var cmd           = callEntry.Type == ScriptProperty
+						? callEntry.GetValue()
+						: GetEntryValue<object>(callEntry, returnStackEntryIfNotFound: true);
 					var rawCommand    = rawCallEntry.Type is StackEntryType.String or Variable
 						? rawCallEntry.GetValue()?.ToString() ?? string.Empty
 						: cmd?.ToString() ?? string.Empty;
@@ -229,6 +270,14 @@ public class ScriptMachine
 						if (parameterEntryValue != null)
 							callParams.Add(parameterEntryValue.ToStackEntry());
 					}
+					var sourceCallParams = callParams.AsEnumerable().Reverse().ToList();
+					var sourceRawCallParams = rawCallParams.AsEnumerable().Reverse().ToList();
+					var orderedCallParams = _script.CallArgumentOrder == ScriptCallArgumentOrder.Original
+						? callParams
+						: sourceCallParams;
+					var orderedRawCallParams = _script.CallArgumentOrder == ScriptCallArgumentOrder.Original
+						? rawCallParams
+						: sourceRawCallParams;
 
 					while (stack.Count > 0 && stack.Peek().Type != ArrayStart) stack.Pop();
 					if (stack.Count > 0) stack.Pop();
@@ -247,12 +296,13 @@ public class ScriptMachine
 						callEntry = receiverFunctionEntry;
 						cmd       = GetEntryValue<object>(callEntry, returnStackEntryIfNotFound: true);
 					}
+					Tools.DebugLine($"[SCRIPT] call {_script.Name}.{normalizedFunctionName} -> {rawCommand} ({callEntry.Type}) params={orderedCallParams.Count} rawparams={orderedRawCallParams.Count}");
 					switch (callEntry.Type)
 					{
 							case StackEntryType.String or Variable
-								when _script.Functions.ContainsKey(cmd?.ToString()?.ToLowerInvariant() ?? string.Empty):
-								stack.Push(await Execute(cmd?.ToString()?.ToLowerInvariant() ?? string.Empty, new(callParams)).ConfigureAwait(false));
-							break;
+									when _script.Functions.ContainsKey(cmd?.ToString()?.ToLowerInvariant() ?? string.Empty):
+									stack.Push(await Execute(cmd?.ToString()?.ToLowerInvariant() ?? string.Empty, CreateCallStack(callParams)).ConfigureAwait(false));
+								break;
 						case StackEntryType.String or Variable
 							when TryGetWithFunctionEntry(ThisObject.ToStackEntry(), cmd?.ToString() ?? string.Empty, out var thisFunctionEntry):
 							var thisFunctionCommand = GetEntryValue<object>(thisFunctionEntry, returnStackEntryIfNotFound: true);
@@ -276,18 +326,22 @@ public class ScriptMachine
 									break;
 							}
 							break;
-						case StackEntryType.String or Variable
-							when TryGetJoinedClassFunction(ThisObject, cmd?.ToString() ?? string.Empty, out var joinedFunction):
-							stack.Push(joinedFunction.Invoke(this, callParams.ToArray()));
-							break;
-						case StackEntryType.String or Variable
-							when TryCallBuiltInFunction(cmd?.ToString(), callParams, rawCallParams, out var builtInResult):
-							stack.Push(builtInResult);
-							break;
+							case StackEntryType.String or Variable
+								when TryGetJoinedClassFunction(ThisObject, cmd?.ToString() ?? string.Empty, out var joinedFunction):
+								stack.Push(joinedFunction.Invoke(this, orderedCallParams.ToArray()));
+								break;
+							case StackEntryType.String or Variable
+								when TryCallBuiltInFunction(cmd?.ToString(), orderedCallParams, orderedRawCallParams, out var builtInResult):
+								stack.Push(builtInResult);
+								break;
+							case StackEntryType.String or Variable
+								when TryCallReceiverPropertyFunction(cmd?.ToString(), orderedCallParams, out var receiverResult):
+								stack.Push(receiverResult);
+								break;
 
-						/*
-						case StackEntryType.String or Variable when Functions.TryGetValue(
-							cmd?.ToString()?.ToLower() ?? string.Empty,
+							/*
+							case StackEntryType.String or Variable when Functions.TryGetValue(
+								cmd?.ToString()?.ToLower() ?? string.Empty,
 							out var command
 						):
 							stack.Push(command.Invoke(this, callParams.ToArray()));
@@ -299,17 +353,19 @@ public class ScriptMachine
 							break;
 						case Function:
 							stack.Push(
-								(cmd as Script.Command)?.Invoke(this, callParams.ToArray()) ?? 0.ToStackEntry()
-							);
-							break;
+									(cmd as Script.Command)?.Invoke(this, orderedCallParams.ToArray()) ?? 0.ToStackEntry()
+								);
+								break;
 						case ScriptProperty:
 							var scriptProperty = cmd as IScriptProperty;
-							var inst           = opWith is { Count: > 0 } ? opWith.Peek().GetValue() : null;
+							var inst           = scriptProperty != null
+								? ResolveScriptPropertyInstance(scriptProperty, callEntry.GetParent())
+								: null;
 
-							if (scriptProperty != null)
-								inst = ResolveScriptPropertyInstance(scriptProperty, inst ?? callEntry.GetParent());
+							if (scriptProperty != null && inst == null && opWith is { Count: > 0 })
+								inst = ResolveScriptPropertyInstance(scriptProperty, opWith.Peek().GetValue());
 
-							stack.Push((scriptProperty?.Call(inst!, callParams.ToArray()) ?? 0).ToStackEntry());
+							stack.Push((scriptProperty?.Call(inst!, orderedCallParams.ToArray()) ?? 0).ToStackEntry());
 							break;
 						default:
 							stack.Push(0.ToStackEntry());
@@ -349,18 +405,23 @@ public class ScriptMachine
 					//index = _script.Field170Xc0;
 					if ((int)op.Value == index)
 					{
-						/* TODO: Make a proper fix
-						if (maxLoopCount <= op.LoopCount &&
-						    !functionName.Equals("onTimeout", StringComparison.CurrentCultureIgnoreCase))
-							throw new ScriptException("Loop limit exceeded");
-						*/
-
+						var loopCount = loopCounts.GetValueOrDefault(curIndex) + 1;
+						loopCounts[curIndex] = loopCount;
+						if (maxLoopCount <= loopCount &&
+						    !normalizedFunctionName.Equals("ontimeout", StringComparison.OrdinalIgnoreCase))
+						{
+							var debugVariable = ResolveEntryForRead("i".ToStackEntry(isVariable: true), opWith, returnStackEntryIfNotFound: true);
+							var message = $"Loop limit exceeded in {_script.Name}.{normalizedFunctionName} at bytecode {curIndex}; i={DescribeEntry(debugVariable)}; stackTop={DescribeEntry(stack.Count > 0 ? stack.Peek() : null)}; withDepth={opWith.Count}; withTop={DescribeEntry(opWith.Count > 0 ? opWith.Peek() : null)}; lastIncrement={lastIncrement}";
+							Tools.DebugLine(message);
+							throw new ScriptException(message);
+						}
 						op.LoopCount += 1;
 					}
 					else
 					{
 						op.Value        = index;
 						op.VariableName = null;
+						loopCounts[curIndex] = 0;
 					}
 
 					index = _indexPos;
@@ -457,7 +518,6 @@ public class ScriptMachine
 							break;
 						}
 
-
 						if (stack.Count > 0 && stack.Peek()?.Type == StackEntryType.Script)
 						{
 							var scriptStackEntry     = stack.Pop();
@@ -529,12 +589,12 @@ public class ScriptMachine
 					stack.Push(new StackEntry(StackEntryType.Array, stackArr)); //push new array onto stack
 					break;
 				case Opcode.OP_ARRAY_NEW:
-					var arraySize = ClampScriptArraySize(ToScriptInt(stack.Pop().GetValue<double>()));
+					var arraySize = ClampScriptArraySize(ToScriptInt(PopOrZero().GetValue<double>()));
 					stack.Push(CreateScriptArray(arraySize).ToStackEntry());
 					break;
 				case Opcode.OP_SETARRAY:
-					var setArraySize = ClampScriptArraySize(ToScriptInt(GetEntry(stack.Pop()).GetValue<double>()));
-					var setArray     = GetMutableScriptArray(GetEntry(stack.Pop(), returnStackEntryIfNotFound: true));
+					var setArraySize = ClampScriptArraySize(ToScriptInt(GetEntry(PopOrZero()).GetValue<double>()));
+					var setArray     = GetMutableScriptArray(GetEntry(PopOrZero(), returnStackEntryIfNotFound: true));
 					if (setArray != null)
 						ResizeScriptArray(setArray, setArraySize);
 					break;
@@ -549,12 +609,20 @@ public class ScriptMachine
 					}
 					break;
 				case Opcode.OP_MAKEVAR:
-					var makeVarName = GetEntryValue<TString>(stack.Pop())?.ToString() ?? string.Empty;
+					var makeVarName = GetEntryValue<TString>(PopOrEmptyString())?.ToString() ?? string.Empty;
 					stack.Push(GetOrCreateScriptVariable(makeVarName));
 					break;
 				case Opcode.OP_NEW_OBJECT:
-					var newObject      = stack.Pop();
-					var newObjectParam = stack.Pop();
+					if (stack.Count == 0)
+					{
+						stack.Push(0.ToStackEntry());
+						break;
+					}
+
+					var newObject = stack.Pop();
+					var newObjectParam = stack.Count > 0
+						? stack.Pop()
+						: (stack.Count == 0 && GetRawStackString(newObject).Length > 0 ? "unknown_object".ToStackEntry() : string.Empty.ToStackEntry());
 					var newObjectClassName = string.Empty;
 					var newObjectName      = string.Empty;
 					try
@@ -570,22 +638,28 @@ public class ScriptMachine
 						}
 
 						var newObjectRet = CreateScriptObject(newObjectClassName, newObjectName);
+						if (newObjectRet is GuiControl newGuiControl &&
+						    opWith.Count > 0 &&
+						    UnwrapScriptValue(opWith.Peek().GetValue()) is GuiControl parentGuiControl)
+						{
+							parentGuiControl.AddControl(newGuiControl);
+						}
 						stack.Push(newObjectRet?.ToStackEntry() ?? 0.ToStackEntry());
 					}
 					catch (Exception e)
 					{
-						Console.WriteLine($"Error creating {newObjectClassName} '{newObjectName}' in {_script.Name}: {e}");
+						Tools.DebugLine($"Error creating {newObjectClassName} '{newObjectName}' in {_script.Name}: {e}");
 						stack.Push(0.ToStackEntry());
 					}
 
 					break;
 				case Opcode.OP_OBJ_FROM_STR:
-					var objFromStrName = GetEntryValue<TString>(stack.Pop())?.ToString() ?? string.Empty;
+					var objFromStrName = GetEntryValue<TString>(PopOrEmptyString())?.ToString() ?? string.Empty;
 					stack.Push(MakeOldScriptVariable(objFromStrName)?.ToStackEntry() ?? 0.ToStackEntry());
 					break;
 				case Opcode.OP_INLINE_CONDITIONAL:
 
-					var inlineConditional = stack.Pop();
+					var inlineConditional = PopOrZero();
 					if (inlineConditional.GetValue<double>() != 0)
 					{
 						inlineConditional.SetValue(1.0d);
@@ -604,11 +678,14 @@ public class ScriptMachine
 					if (stack.Count > 0)
 						stack.Push(GetEntry(stack.Pop(), returnStackEntryIfNotFound: true));
 					break;
-				case Opcode.OP_ASSIGN:
-					var val      = PopOrZero();
-					var variable = (stack.Count == 0 ? opCopy : /*GetEntry*/(PopOrZero())) ?? 0.ToStackEntry();
-					AssignValue(variable, val, opWith);
-					break;
+					case Opcode.OP_ASSIGN:
+						var val      = PopOrZero();
+						var variable = (stack.Count == 0 ? opCopy : /*GetEntry*/(PopOrZero())) ?? 0.ToStackEntry();
+						while (!IsAssignmentTargetEntry(variable) && stack.Count > 0 && IsAssignmentTargetEntry(stack.Peek()))
+							variable = PopOrZero();
+						opCopy = CopyStackEntry(variable);
+						AssignValue(variable, val, opWith);
+						break;
 				case Opcode.OP_FUNC_PARAMS_END:
 					while (stack.Count > 0)
 					{
@@ -618,10 +695,18 @@ public class ScriptMachine
 							if (callStack is { Count: > 0 })
 							{
 								var funcParamVal = callStack.Pop();
-								_tempVariables.AddOrUpdate(
-										(funcParam.GetValue() ?? "").ToString()?.ToLowerInvariant() ?? string.Empty,
-									funcParamVal ?? 0.ToStackEntry()
-								);
+								var funcParamName = (funcParam.GetValue() ?? "").ToString()?.ToLowerInvariant() ?? string.Empty;
+								Tools.DebugLine($"[SCRIPT] param {funcParamName}={DescribeEntry(funcParamVal)}");
+								if (funcParam.Type == Variable && funcParam.GetParent() is VariableCollection parentCollection)
+								{
+									if (ReferenceEquals(parentCollection, _tempVariables))
+										_tempAliases.Add(funcParamName);
+									parentCollection.AddOrUpdate(funcParamName, funcParamVal ?? 0.ToStackEntry());
+								}
+								else
+								{
+									_localVariables.AddOrUpdate(funcParamName, funcParamVal ?? 0.ToStackEntry());
+								}
 							}
 						}
 						catch (Exception e)
@@ -634,28 +719,24 @@ public class ScriptMachine
 					_useTemp = false;
 					index    = _indexPos;
 					break;
-				case Opcode.OP_INC:
-					var incVar = GetEntry(stack.Pop());
-					var incVal = GetEntryValue<double>(incVar);
-
-					if (incVar.Type == Number) incVar.SetValue(incVal + 1);
-
-					stack.Push(incVar);
-					break;
-				case Opcode.OP_DEC:
-					var decVar = GetEntry(stack.Pop());
-					var decVal = GetEntryValue<double>(decVar);
-
-					if (decVar.Type == Number) decVar.SetValue(decVal - 1);
-
-					stack.Push(decVar);
-					break;
+					case Opcode.OP_INC:
+						var incVar = stack.Count > 0 ? stack.Pop() : opCopy ?? 0.ToStackEntry();
+						var incTarget = IncrementEntry(incVar, 1.0d, opWith);
+						lastIncrement = $"{curIndex}:{DescribeEntry(incVar)}->{DescribeEntry(incTarget)}";
+						stack.Push(incVar);
+						break;
+					case Opcode.OP_DEC:
+						var decVar = stack.Count > 0 ? stack.Pop() : opCopy ?? 0.ToStackEntry();
+						var decTarget = IncrementEntry(decVar, -1.0d, opWith);
+						lastIncrement = $"{curIndex}:{DescribeEntry(decVar)}->{DescribeEntry(decTarget)}";
+						stack.Push(decVar);
+						break;
 				case Opcode.OP_UNKNOWN_54:
 					if (stack.Count >= 3)
-					{
+				{
 						var memberAssignValue  = stack.Pop();
 						var memberAssignName   = GetEntryValue<TString>(stack.Pop(), returnStackEntryIfNotFound: true)?.ToString() ?? string.Empty;
-						var memberAssignTarget = GetMemberValue(stack.Pop(), memberAssignName);
+						var memberAssignTarget = GetMemberValue(stack.Pop(), memberAssignName, createMissingParent: true);
 
 						AssignValue(memberAssignTarget, memberAssignValue, opWith);
 					}
@@ -720,6 +801,7 @@ public class ScriptMachine
 						? CalculateOptimizedLogical((Opcode)((byte)op.OpCode - 148), optimizedAssignLeft, optimizedAssignRight)
 						: CalculateOptimizedImmediate((Opcode)((byte)op.OpCode - 8), optimizedAssignLeft, optimizedAssignRight);
 					AssignValue(optimizedAssignTarget, optimizedAssignValue.ToStackEntry(), opWith);
+					opCopy = CopyStackEntry(optimizedAssignTarget);
 					break;
 				case Opcode.OP_UNKNOWN_216:
 				case Opcode.OP_UNKNOWN_217:
@@ -735,6 +817,7 @@ public class ScriptMachine
 						? CalculateOptimizedLogical((Opcode)((byte)op.OpCode - 156), optimizedImmediateAssignLeft, op.Value)
 						: CalculateOptimizedImmediate((Opcode)((byte)op.OpCode - 16), optimizedImmediateAssignLeft, op.Value);
 					AssignValue(optimizedImmediateAssignTarget, optimizedImmediateAssignValue.ToStackEntry(), opWith);
+					opCopy = CopyStackEntry(optimizedImmediateAssignTarget);
 					break;
 				case Opcode.OP_UNKNOWN_224:
 				case Opcode.OP_UNKNOWN_225:
@@ -757,7 +840,10 @@ public class ScriptMachine
 				case Opcode.OP_UNKNOWN_231:
 				case Opcode.OP_UNKNOWN_232:
 					if (callStackRegisters.TryGetValue(ToScriptInt(op.Value), out var registerEntry))
-						IncrementEntry(registerEntry, op.OpCode == Opcode.OP_UNKNOWN_231 ? 1.0d : -1.0d);
+					{
+						var registerTarget = IncrementEntry(registerEntry, op.OpCode == Opcode.OP_UNKNOWN_231 ? 1.0d : -1.0d, opWith);
+						lastIncrement = $"{curIndex}:{DescribeEntry(registerEntry)}->{DescribeEntry(registerTarget)}";
+					}
 					break;
 				case Opcode.OP_UNKNOWN_233:
 					var copiedRegisterEntry = ReadCallStackRegister(op.Value);
@@ -765,7 +851,7 @@ public class ScriptMachine
 					stack.Push(CopyStackEntry(copiedRegisterEntry));
 					break;
 				case Opcode.OP_UNKNOWN_234:
-					stack.Push(stack.Count > 0 ? GetMemberValue(stack.Pop(), op.VariableName ?? string.Empty) : 0.ToStackEntry());
+					stack.Push(stack.Count > 0 ? GetMemberValue(stack.Pop(), op.VariableName ?? string.Empty, createMissingParent: true) : 0.ToStackEntry());
 					break;
 				case Opcode.OP_UNKNOWN_235:
 					stack.Push(ConvertToObjectEntry((op.VariableName ?? string.Empty).ToString().ToStackEntry(true), opWith));
@@ -809,32 +895,32 @@ public class ScriptMachine
 					break;
 				case Opcode.OP_EQ:
 					var eqRight = ResolveEntryForComparison(PopOrZero(), opWith);
-					var eqLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
+					var eqLeft  = ResolveEntryForComparison(PopOrCopyOrZero(), opWith);
 					stack.Push(ScriptEntriesEqual(eqLeft, eqRight).ToStackEntry());
 					break;
 				case Opcode.OP_NEQ:
 					var neqRight = ResolveEntryForComparison(PopOrZero(), opWith);
-					var neqLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
+					var neqLeft  = ResolveEntryForComparison(PopOrCopyOrZero(), opWith);
 					stack.Push((!ScriptEntriesEqual(neqLeft, neqRight)).ToStackEntry());
 					break;
 				case Opcode.OP_LT:
 					var ltRight = ResolveEntryForComparison(PopOrZero(), opWith);
-					var ltLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
+					var ltLeft  = ResolveEntryForComparison(PopOrCopyOrZero(), opWith);
 					stack.Push((CompareScriptValues(ltLeft, ltRight) < 0).ToStackEntry());
 					break;
 				case Opcode.OP_GT:
 					var gtRight = ResolveEntryForComparison(PopOrZero(), opWith);
-					var gtLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
+					var gtLeft  = ResolveEntryForComparison(PopOrCopyOrZero(), opWith);
 					stack.Push((CompareScriptValues(gtLeft, gtRight) > 0).ToStackEntry());
 					break;
 				case Opcode.OP_LTE:
 					var lteRight = ResolveEntryForComparison(PopOrZero(), opWith);
-					var lteLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
+					var lteLeft  = ResolveEntryForComparison(PopOrCopyOrZero(), opWith);
 					stack.Push((CompareScriptValues(lteLeft, lteRight) <= 0).ToStackEntry());
 					break;
 				case Opcode.OP_GTE:
 					var gteRight = ResolveEntryForComparison(PopOrZero(), opWith);
-					var gteLeft  = ResolveEntryForComparison(PopOrZero(), opWith);
+					var gteLeft  = ResolveEntryForComparison(PopOrCopyOrZero(), opWith);
 					stack.Push((CompareScriptValues(gteLeft, gteRight) >= 0).ToStackEntry());
 					break;
 				case Opcode.OP_BWO:
@@ -1038,8 +1124,8 @@ public class ScriptMachine
 					stack.Push(GetScriptSubstring(subStr, subStrStart, subStrLen).ToStackEntry());
 					break;
 				case Opcode.OP_OBJ_STARTS:
-					var obj = GetEntryValue<TString>(PopOrEmptyString()) ?? "";
 					var startsWith = GetEntryValue<TString>(PopOrEmptyString()) ?? "";
+					var obj = GetEntryValue<TString>(PopOrEmptyString()) ?? "";
 					stack.Push(
 						obj.StartsWith(startsWith, StringComparison.CurrentCultureIgnoreCase).ToStackEntry()
 					);
@@ -1167,10 +1253,12 @@ public class ScriptMachine
 					case Opcode.OP_WITH:
 						var withTarget = GetEntry(stack.Pop(), returnStackEntryIfNotFound: true);
 						var withValue = UnwrapScriptValue(withTarget.GetValue());
-						if (withValue is null || withTarget.Type == StackEntryType.Number && ToScriptDouble(withValue) == 0.0d)
-					{
-						index = (int)op.Value;
-						_indexPos = index;
+						if (withValue is null ||
+						    withTarget.Type == StackEntryType.Number && ToScriptDouble(withValue) == 0.0d ||
+						    !IsObjectEntry(withTarget))
+						{
+							index = (int)op.Value;
+							_indexPos = index;
 							break;
 						}
 						opWith.Push(withTarget);
@@ -1213,7 +1301,7 @@ public class ScriptMachine
 					stack.Push(arrForeachIndexEntry);
 					break;
 					case Opcode.OP_THIS:
-						stack.Push(ThisObject.ToStackEntry());
+						stack.Push(opWith.Count > 0 ? opWith.Peek() : ThisObject.ToStackEntry());
 						break;
 					case Opcode.OP_THISO:
 						stack.Push((RefObject ?? _script).ToStackEntry());
@@ -1232,7 +1320,7 @@ public class ScriptMachine
 					_useTemp = true;
 					break;
 				case Opcode.OP_PARAMS:
-					stack.Push(_tempVariables.GetVariable("params"));
+					stack.Push(_localVariables.GetVariable("params"));
 					break;
 				case Opcode.OP_NUM_OPS:
 					break;
@@ -1251,7 +1339,7 @@ public class ScriptMachine
 			.Cast<object?>()
 			.ToList() ?? [];
 
-			_tempVariables.AddOrUpdate("params", parameters.ToStackEntry());
+			_localVariables.AddOrUpdate("params", parameters.ToStackEntry());
 		}
 
 		private int GetFunctionEnd(int functionStart) =>
@@ -1383,6 +1471,10 @@ public class ScriptMachine
 			? entry
 			: new StackEntry(entry.Type, entry.GetValue(), entry.GetParent());
 
+	private static bool IsAssignmentTargetEntry(IStackEntry entry) =>
+		entry is LinkedStackEntry or ListCellStackEntry ||
+		entry.Type is Variable or ScriptProperty;
+
 	private object? ResolveScriptPropertyInstance(IScriptProperty property, object? candidate)
 	{
 		if (property.MainType == typeof(Script))
@@ -1446,20 +1538,84 @@ public class ScriptMachine
 		if (resolvedEntry.Type is not (StackEntryType.String or Variable))
 			return resolvedEntry;
 
-			var variableName = GetEntryValue<TString>(resolvedEntry, returnStackEntryIfNotFound: true)?.ToString().ToLowerInvariant() ?? string.Empty;
+		var variableName = GetEntryValue<TString>(resolvedEntry, returnStackEntryIfNotFound: true)?.ToString().ToLowerInvariant() ?? string.Empty;
 		if (opWith is { Count: > 0 } && TryGetWithMemberEntry(opWith.Peek(), variableName, out var withMemberEntry))
 			return withMemberEntry;
 
-		return GetEntry(variableName.ToString().ToStackEntry(true), Variable);
+		if (variableName is "temp")
+			return _tempVariables.ToStackEntry();
+
+		if (TryGetObjectEntryByName(variableName, out var objectEntry))
+			return objectEntry;
+
+		return resolvedEntry;
 	}
 
-	private IStackEntry GetMemberValue(IStackEntry parentStackEntry, string memberName)
+	private IStackEntry GetOrCreateScopedObjectVariable(string name)
+	{
+		var normalizedName = NormalizeScriptVariableName(name);
+		if (string.IsNullOrEmpty(normalizedName))
+			return 0.ToStackEntry();
+
+		if (normalizedName == "this")
+			return ThisObject.ToStackEntry();
+		if (normalizedName == "thiso")
+			return (RefObject ?? _script).ToStackEntry();
+
+		var collection = _localVariables;
+		if (collection.TryGetVariable(normalizedName, out var existingEntry) &&
+		    UnwrapScriptValue(existingEntry?.GetValue()) is VariableCollection)
+		{
+			return existingEntry!;
+		}
+
+		var created = new ScriptVariable(normalizedName);
+		return collection.AddOrUpdate(normalizedName, created.ToStackEntry());
+	}
+
+	private bool TryGetObjectEntryByName(string name, out IStackEntry objectEntry)
+	{
+		objectEntry = 0.ToStackEntry();
+		var normalizedName = NormalizeScriptVariableName(name);
+		if (string.IsNullOrEmpty(normalizedName))
+			return false;
+
+		if (_script.ScriptManager.GlobalVariables.TryGetVariable(normalizedName, out var globalEntry) &&
+		    UnwrapScriptValue(globalEntry?.GetValue()) is ScriptVariable)
+		{
+			objectEntry = globalEntry!;
+			return true;
+		}
+
+		if (_tempVariables.TryGetVariable(normalizedName, out var tempEntry) &&
+		    UnwrapScriptValue(tempEntry?.GetValue()) is ScriptVariable)
+		{
+			objectEntry = tempEntry!;
+			return true;
+		}
+
+		if (_localVariables.TryGetVariable(normalizedName, out var localEntry) &&
+		    UnwrapScriptValue(localEntry?.GetValue()) is ScriptVariable)
+		{
+			objectEntry = localEntry!;
+			return true;
+		}
+
+		return false;
+	}
+
+	private IStackEntry GetMemberValue(IStackEntry parentStackEntry, string memberName, bool createMissingParent = false)
 	{
 		var normalizedMemberName = NormalizeScriptVariableName(memberName);
 		try
 		{
 			var parentEntry = GetEntry(parentStackEntry, returnStackEntryIfNotFound: true);
 			var parentValue = UnwrapScriptValue(parentEntry.GetValue());
+			if (createMissingParent && parentEntry.Type == Variable && parentEntry.GetParent() is null)
+			{
+				parentEntry = GetOrCreateScopedObjectVariable(Tools.ToScriptString(parentValue));
+				parentValue = UnwrapScriptValue(parentEntry.GetValue());
+			}
 
 			if (parentValue is Script script)
 			{
@@ -1474,7 +1630,7 @@ public class ScriptMachine
 				if (TryGetJoinedClassFunction(script, normalizedMemberName, out var joinedCommand))
 					return joinedCommand.ToStackEntry();
 
-				return script.GetVariable(normalizedMemberName);
+				return CreateMemberVariableEntry(script, normalizedMemberName);
 			}
 
 			if (parentValue is VariableCollection variableCollection)
@@ -1492,6 +1648,9 @@ public class ScriptMachine
 
 				return CreateMemberVariableEntry(variableCollection, normalizedMemberName);
 			}
+
+			if (TryGetRegisteredInstanceProperty(parentValue, normalizedMemberName, out var registeredProperty))
+				return registeredProperty.ToStackEntry(parent: parentValue);
 		}
 		catch (Exception e)
 		{
@@ -1501,11 +1660,30 @@ public class ScriptMachine
 		return 0.ToStackEntry();
 	}
 
-	private bool TryCallBuiltInFunction(
-		string? functionName,
-		IReadOnlyList<IStackEntry> args,
-		IReadOnlyList<IStackEntry> rawArgs,
-		out IStackEntry result
+	private static bool TryGetRegisteredInstanceProperty(object? instance, string memberName, out IScriptProperty property)
+	{
+		property = null!;
+		if (instance == null || string.IsNullOrWhiteSpace(memberName))
+			return false;
+
+		var instanceType = instance.GetType();
+		foreach (var properties in ScriptManager.GlobalProperties.Values.ToArray())
+		{
+			property = properties.ToArray().FirstOrDefault(scriptProperty =>
+				scriptProperty.MainType.IsAssignableFrom(instanceType) &&
+				scriptProperty.PropertyName.Equals(memberName, StringComparison.CurrentCultureIgnoreCase))!;
+			if (property != null)
+				return true;
+		}
+
+		return false;
+	}
+
+		private bool TryCallBuiltInFunction(
+			string? functionName,
+			IReadOnlyList<IStackEntry> args,
+			IReadOnlyList<IStackEntry> rawArgs,
+			out IStackEntry result
 	)
 	{
 		result = 0.ToStackEntry();
@@ -1516,14 +1694,39 @@ public class ScriptMachine
 				result = IsObject(args.Count > 0 ? args[0] : null, rawArgs.Count > 0 ? rawArgs[0] : null).ToStackEntry();
 				return true;
 			default:
-				return false;
+					return false;
+			}
 		}
-	}
 
-	private bool IsObject(IStackEntry? resolvedEntry, IStackEntry? rawEntry)
-	{
-		return IsObjectEntry(resolvedEntry) || IsObjectReference(rawEntry);
-	}
+		private static bool TryCallReceiverPropertyFunction(
+			string? functionName,
+			IReadOnlyList<IStackEntry> args,
+			out IStackEntry result
+		)
+		{
+			result = 0.ToStackEntry();
+			if (args.Count == 0)
+				return false;
+
+			var normalizedFunctionName = NormalizeScriptVariableName(functionName ?? string.Empty);
+			if (string.IsNullOrEmpty(normalizedFunctionName))
+				return false;
+
+			var receiver = UnwrapScriptValue(args[0].GetValue());
+			if (!TryGetRegisteredInstanceProperty(receiver, normalizedFunctionName, out var property) ||
+			    !property.IsFunction)
+			{
+				return false;
+			}
+
+			result = (property.Call(receiver!, args.Skip(1).ToArray()) ?? 0).ToStackEntry();
+			return true;
+		}
+
+		private bool IsObject(IStackEntry? resolvedEntry, IStackEntry? rawEntry)
+		{
+			return IsObjectEntry(resolvedEntry) || IsObjectReference(rawEntry);
+		}
 
 	private bool IsObjectEntry(IStackEntry? entry)
 	{
@@ -1570,7 +1773,7 @@ public class ScriptMachine
 			if (!ScriptManager.GlobalProperties.TryGetValue(propertySetName, out var properties))
 				continue;
 
-			property = properties.FirstOrDefault(scriptProperty =>
+			property = properties.ToArray().FirstOrDefault(scriptProperty =>
 				scriptProperty.PropertyName.Equals(variableName, StringComparison.CurrentCultureIgnoreCase))!;
 			if (property != null)
 				return true;
@@ -1612,6 +1815,12 @@ public class ScriptMachine
 
 			return withMemberEntry;
 		}
+
+		if (entry.Type == Variable &&
+		    entry.GetParent() is null &&
+		    _tempAliases.Contains(NormalizeScriptVariableName(entry.GetValue()?.ToString() ?? string.Empty)) &&
+		    _tempVariables.ContainsVariable(NormalizeScriptVariableName(entry.GetValue()?.ToString() ?? string.Empty)))
+			return GetEntry(entry, returnStackEntryIfNotFound: returnStackEntryIfNotFound);
 
 		return GetEntry(entry, returnStackEntryIfNotFound: returnStackEntryIfNotFound);
 	}
@@ -1696,12 +1905,41 @@ public class ScriptMachine
 		return false;
 	}
 
-	private void IncrementEntry(IStackEntry entry, double delta)
+	private IStackEntry IncrementEntry(IStackEntry entry, double delta, Stack<IStackEntry>? opWith)
 	{
-		var target = entry.Type == Variable
-			? GetOrCreateScriptVariable(entry.GetValue()?.ToString() ?? string.Empty)
-			: GetEntry(entry, returnStackEntryIfNotFound: true);
+		IStackEntry target;
+		if (entry.Type == Variable &&
+		    entry.GetParent() is not VariableCollection &&
+		    opWith is { Count: > 0 } &&
+		    TryGetWithMemberEntry(opWith.Peek(), entry.GetValue()?.ToString() ?? string.Empty, out var withMemberEntry))
+		{
+			target = withMemberEntry;
+		}
+		else if (entry.Type == Variable &&
+		         entry.GetParent() is null &&
+		         _localVariables.ContainsVariable(NormalizeScriptVariableName(entry.GetValue()?.ToString() ?? string.Empty)))
+		{
+			target = GetEntry(entry, returnStackEntryIfNotFound: true);
+		}
+		else if (entry.Type == Variable &&
+		         entry.GetParent() is null &&
+		         _tempAliases.Contains(NormalizeScriptVariableName(entry.GetValue()?.ToString() ?? string.Empty)) &&
+		         _tempVariables.ContainsVariable(NormalizeScriptVariableName(entry.GetValue()?.ToString() ?? string.Empty)))
+		{
+			target = GetEntry(entry, returnStackEntryIfNotFound: true);
+		}
+		else
+		{
+			target = entry.Type == Variable && entry.GetParent() is not VariableCollection
+				? GetEntry(entry, returnStackEntryIfNotFound: true)
+				: GetEntry(entry, returnStackEntryIfNotFound: true);
+		}
+
+		if (target.Type == Variable && target.GetParent() is null)
+			target = GetOrCreateScriptVariable(target.GetValue()?.ToString() ?? string.Empty);
+
 		target.SetValue(ToScriptDouble(target.GetValue()) + delta);
+		return target;
 	}
 
 	private void AssignValue(IStackEntry variable, IStackEntry val, Stack<IStackEntry>? opWith)
@@ -1723,6 +1961,8 @@ public class ScriptMachine
 
 		if (variable.Type == Variable && variable.GetParent() is VariableCollection parentCollection)
 		{
+			if (ReferenceEquals(parentCollection, _tempVariables))
+				_tempAliases.Add(normalizedVariableName);
 			parentCollection.AddOrUpdate(normalizedVariableName, assignStorageEntry);
 			_useTemp = false;
 			return;
@@ -1733,6 +1973,32 @@ public class ScriptMachine
 			var scriptProp = variable.GetValue<IScriptProperty>();
 			var inst = scriptProp != null ? ResolveScriptPropertyInstance(scriptProp, variable.GetParent()) : null;
 			scriptProp?.Write(inst!, assignValue);
+			return;
+		}
+
+		if (opWith is { Count: not 0 } &&
+		    TryGetWithMemberEntry(opWith.Peek(), variableName, out var withMemberEntry))
+		{
+			AssignValue(withMemberEntry, assignStorageEntry, null);
+			return;
+		}
+
+		if (variable.Type == Variable &&
+		    variable.GetParent() == null &&
+		    _localVariables.ContainsVariable(normalizedVariableName))
+		{
+			_localVariables.AddOrUpdate(normalizedVariableName, assignStorageEntry);
+			_useTemp = false;
+			return;
+		}
+
+		if (variable.Type == Variable &&
+		    variable.GetParent() == null &&
+		    _tempAliases.Contains(normalizedVariableName) &&
+		    _tempVariables.ContainsVariable(normalizedVariableName))
+		{
+			_tempVariables.AddOrUpdate(normalizedVariableName, assignStorageEntry);
+			_useTemp = false;
 			return;
 		}
 
@@ -1767,14 +2033,18 @@ public class ScriptMachine
 		{
 			variable.SetValue(assignEntry is LinkedStackEntry ? assignEntry : assignValue);
 		}
-		else if (!_useTemp)
+		else if (!_useTemp && _script.ScriptManager.GlobalVariables.ContainsVariable(normalizedVariableName))
+		{
+			_script.ScriptManager.GlobalVariables.AddOrUpdate(normalizedVariableName, assignStorageEntry);
+		}
+		else if (!_useTemp && CurrentFunctionName.Contains('.'))
 		{
 			_script.ScriptManager.GlobalVariables.AddOrUpdate(normalizedVariableName, assignStorageEntry);
 		}
 		else
 		{
 			_useTemp = false;
-			_tempVariables.AddOrUpdate(normalizedVariableName, assignStorageEntry);
+			_localVariables.AddOrUpdate(normalizedVariableName, assignStorageEntry);
 		}
 	}
 
@@ -1826,8 +2096,11 @@ public class ScriptMachine
 		switch (type)
 		{
 			case Variable when stackEntry.GetParent() is VariableCollection parentCollection:
+				var parentVariableName = NormalizeScriptVariableName(stackEntry.GetValue()?.ToString() ?? string.Empty);
+				if (ReferenceEquals(parentCollection, _tempVariables))
+					_tempAliases.Add(parentVariableName);
 				retVal = parentCollection.GetVariable(
-					NormalizeScriptVariableName(stackEntry.GetValue()?.ToString() ?? string.Empty)
+					parentVariableName
 				);
 				_useTemp = false;
 				foundVariable = true;
@@ -1841,7 +2114,14 @@ public class ScriptMachine
 				foundVariable = true;
 				break;
 			case Variable
-					when _tempVariables.ContainsVariable(stackEntry.GetValue()?.ToString()?.ToLowerInvariant() ?? string.Empty):
+					when _localVariables.ContainsVariable(stackEntry.GetValue()?.ToString()?.ToLowerInvariant() ?? string.Empty):
+					_useTemp = false;
+					retVal = _localVariables.GetVariable(stackEntry.GetValue()?.ToString()?.ToLowerInvariant() ?? string.Empty);
+				foundVariable = true;
+				break;
+			case Variable
+					when _tempAliases.Contains(stackEntry.GetValue()?.ToString()?.ToLowerInvariant() ?? string.Empty) &&
+					     _tempVariables.ContainsVariable(stackEntry.GetValue()?.ToString()?.ToLowerInvariant() ?? string.Empty):
 					_useTemp = false;
 					retVal = _tempVariables.GetVariable(stackEntry.GetValue()?.ToString()?.ToLowerInvariant() ?? string.Empty);
 				foundVariable = true;
@@ -1893,7 +2173,7 @@ public class ScriptMachine
 			return false;
 		}
 
-		property = properties.FirstOrDefault(x => x.PropertyName.Equals(propertyName, StringComparison.CurrentCultureIgnoreCase))!;
+		property = properties.ToArray().FirstOrDefault(x => x.PropertyName.Equals(propertyName, StringComparison.CurrentCultureIgnoreCase))!;
 		return property != null;
 	}
 
@@ -2157,16 +2437,34 @@ public class ScriptMachine
 
 		private static double GetScriptArraySize(object? value) => GetArrayValues(value)?.Count ?? 0.0d;
 
-		private static object? GetScriptArrayCell(object? array, int index)
+	private static object? GetScriptArrayCell(object? array, int index)
+	{
+		var values = GetArrayValues(array);
+		if (values == null)
+			return 0.0d;
+
+		if (index >= 0 && index < values.Count)
+			return values[index];
+
+		return GetOutOfRangeArrayCellValue(values);
+	}
+
+	private static object? GetOutOfRangeArrayCellValue(IEnumerable<object?> values)
+	{
+		foreach (var value in values.Select(UnwrapScriptValue))
 		{
-			var values = GetArrayValues(array);
-			return values != null && index >= 0 && index < values.Count
-				? values[index]
-				: 0.0d;
+			if (value is TString or string)
+				return string.Empty;
+
+			if (value is VariableCollection or IDictionary or IEnumerable)
+				return 0.0d;
 		}
 
-		private static object? GetScriptArrayCell2(object? array, int x, int y) =>
-			GetScriptArrayCell(GetScriptArrayCell(array, x), y);
+		return 0.0d;
+	}
+
+	private static object? GetScriptArrayCell2(object? array, int x, int y) =>
+		GetScriptArrayCell(GetScriptArrayCell(array, x), y);
 
 		private static void SetScriptArrayCell(IStackEntry arrayEntry, int index, object? value)
 		{
@@ -2379,6 +2677,10 @@ public class ScriptMachine
 	public void Reset()
 	{
 		_firstRun = true;
-		_tempVariables.Clear();
+		_rootTempVariables.Clear();
+		_tempFrames.Clear();
+		_localFrames.Clear();
+		_tempAliasFrames.Clear();
+		_functionFrames.Clear();
 	}
 }

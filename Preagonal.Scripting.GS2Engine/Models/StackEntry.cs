@@ -126,7 +126,7 @@ public class StackEntry : IStackEntry
 
 		Value = value switch
 		{
-			string   => (TString)value,
+			string s => (TString)s,
 			TString  => value,
 			int      => Convert.ToDouble(value, CultureInfo.InvariantCulture),
 			double   => (double)value,

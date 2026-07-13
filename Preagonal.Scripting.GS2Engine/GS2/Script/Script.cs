@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -26,6 +27,7 @@ public class Script : ScriptVariable
 	public readonly            ScriptVariable?                    RefObject = null;
 	public                     bool                               ExecutionEnabled { get; private set; } = true;
 	public                     bool                               HasOnlyFunctions { get; private set; } = true;
+	public                     ScriptCallArgumentOrder            CallArgumentOrder { get; private set; } = ScriptCallArgumentOrder.Compiler;
 	public                     TString                            File             { get; set; }
 	public                     ScriptType                         Type             { get; }
 	private                    int                                Gs1Flags         { get; set; }
@@ -50,7 +52,8 @@ public class Script : ScriptVariable
 		IScriptManager scriptManager,
 		TString bytecodeFile,
 		ScriptVariable? refObject = null,
-		ScriptType? type = null
+		ScriptType? type = null,
+		ScriptCallArgumentOrder callArgumentOrder = ScriptCallArgumentOrder.Compiler
 	)
 	{
 		_             = Properties;
@@ -60,6 +63,7 @@ public class Script : ScriptVariable
 		RefObject = refObject;
 		Machine   = new(this);
 		Type      = type ?? ScriptType.Weapon;
+		CallArgumentOrder = callArgumentOrder;
 
 		SetStream(ReadAllBytes(bytecodeFile));
 
@@ -71,7 +75,8 @@ public class Script : ScriptVariable
 		TString name,
 		byte[] bytecode,
 		ScriptVariable? refObject = null,
-		ScriptType? type = null
+		ScriptType? type = null,
+		ScriptCallArgumentOrder callArgumentOrder = ScriptCallArgumentOrder.Compiler
 	)
 	{
 		_             = Properties;
@@ -81,6 +86,7 @@ public class Script : ScriptVariable
 		RefObject     = refObject;
 		Machine       = new(this);
 		Type          = type ?? ScriptType.Weapon;
+		CallArgumentOrder = callArgumentOrder;
 
 		SetStream(bytecode);
 
@@ -92,19 +98,21 @@ public class Script : ScriptVariable
 		ScriptManager.UnregisterGlobalScript(this);
 	}
 
-	public void UpdateFromFile(string scriptFile)
+	public void UpdateFromFile(string scriptFile, ScriptCallArgumentOrder callArgumentOrder = ScriptCallArgumentOrder.Compiler)
 	{
 		Name = Path.GetFileNameWithoutExtension(scriptFile);
 		File = scriptFile;
+		CallArgumentOrder = callArgumentOrder;
 		SetStream(ReadAllBytes(scriptFile));
 
 		Init();
 	}
 
-	public void UpdateFromByteCode(TString name, byte[] byteCode)
+	public void UpdateFromByteCode(TString name, byte[] byteCode, ScriptCallArgumentOrder callArgumentOrder = ScriptCallArgumentOrder.Compiler)
 	{
 		Name = name;
 		File = "";
+		CallArgumentOrder = callArgumentOrder;
 		SetStream(byteCode);
 
 		Init();
@@ -620,11 +628,11 @@ public class Script : ScriptVariable
 			_ => null,
 		};
 
-	private async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? parameters = null, ScriptVariable? receiverOverride = null)
+	private async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? parameters = null, ScriptVariable? receiverOverride = null, bool inheritTempFrame = false)
 	{
 		try
 		{
-			return await Machine.Execute(functionName, parameters, receiverOverride).ConfigureAwait(false);
+			return await Machine.Execute(functionName, parameters, receiverOverride, inheritTempFrame).ConfigureAwait(false);
 		}
 		catch (Exception e)
 		{
@@ -636,6 +644,9 @@ public class Script : ScriptVariable
 
 	internal Task<IStackEntry> CallEntries(string eventName, IEnumerable<IStackEntry>? args, ScriptVariable? receiverOverride = null) =>
 		Execute(eventName, BuildCallStack(args), receiverOverride);
+
+	private Task<IStackEntry> CallEntries(string eventName, IEnumerable<IStackEntry>? args, ScriptVariable? receiverOverride, bool inheritTempFrame) =>
+		Execute(eventName, BuildCallStack(args), receiverOverride, inheritTempFrame);
 
 	internal void InstallObjectEventCatchers(string objectName, Script sourceScript)
 	{
@@ -721,8 +732,17 @@ public class Script : ScriptVariable
 			int[] ia => ia.ToStackEntry(),
 			bool bo => bo.ToStackEntry(),
 			VariableCollection p => p.ToStackEntry(),
+			IEnumerable enumerable => enumerable.Cast<object?>().ToStackEntry(),
 			_ => null
 		};
+
+	private static bool IsObjectEventName(string eventName)
+	{
+		var dotIndex = eventName.LastIndexOf('.');
+		return dotIndex >= 0 &&
+		       dotIndex + 2 < eventName.Length &&
+		       eventName.AsSpan(dotIndex + 1).StartsWith("on", StringComparison.OrdinalIgnoreCase);
+	}
 
 	/// <summary>
 	///     Function -> Call Event for Object
@@ -732,18 +752,24 @@ public class Script : ScriptVariable
 		try
 		{
 			var entries = args?.Select(ToCallStackEntry).Where(entry => entry != null).Cast<IStackEntry>().ToArray();
+			var inheritTempFrame = IsObjectEventName(eventName);
 			bool hasFunction;
 			lock (_functionsLock)
 				hasFunction = Functions.ContainsKey(eventName.ToLowerInvariant());
 
 			if (hasFunction)
-				return await Execute(eventName, BuildCallStack(entries)).ConfigureAwait(false);
+				return await Execute(eventName, BuildCallStack(entries), inheritTempFrame: inheritTempFrame).ConfigureAwait(false);
 
 			if (TryGetEventCatchers(eventName, out var catchers))
 			{
 				IStackEntry result = 0.ToStackEntry();
 				foreach (var catcher in catchers)
-					result = await catcher.Key.CallEntries(catcher.Value, entries).ConfigureAwait(false);
+					result = await catcher.Key.CallEntries(
+						catcher.Value,
+						entries,
+						null,
+						IsObjectEventName(catcher.Value)
+					).ConfigureAwait(false);
 
 				return result;
 			}
@@ -752,7 +778,7 @@ public class Script : ScriptVariable
 
 			var callStack = BuildCallStack(entries);
 
-			return await Execute(eventName, callStack).ConfigureAwait(false);
+			return await Execute(eventName, callStack, inheritTempFrame: inheritTempFrame).ConfigureAwait(false);
 		}
 		catch (Exception e)
 		{

@@ -16,7 +16,7 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 
 	protected readonly string  Id;
 	protected readonly Script? Script;
-	private readonly List<TGUIAnimation> _animations = [];
+	private readonly List<GuiAnimation> _animations = [];
 	private readonly HashSet<int> _mouseLocks = [];
 		private int _areaClickPriority;
 		private int _height;
@@ -25,12 +25,16 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 		private IGuiControl? _parent;
 		private object? _profile;
 		private GuiControlProfile? _ownProfile;
+		private string _text = string.Empty;
 		private bool _visible;
+		private int _clientHeight;
+		private int _clientWidth;
 		private int _width;
 		private int _x;
 		private int _y;
 		[ThreadStatic]
 		private static HashSet<GuiControl>? _drawStack;
+	protected event Action<string>? TextChanged;
 
 	public GuiControl(string id, Script? script) : base(id)
 	{
@@ -54,6 +58,8 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 		_y           = 0;
 		_width       = 64;
 		_height      = 64;
+		_clientWidth = _width;
+		_clientHeight = _height;
 		_visible     = true;
 		Alpha        = 1;
 		Red          = 1;
@@ -84,13 +90,13 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 	public bool         CanResize     { get; set; }
 	public int          ClientHeight
 	{
-		get => Height;
-		set => Height = value;
+		get => _clientHeight;
+		set => Resize(X, Y, Width, Height + value - _clientHeight);
 	}
 	public int          ClientWidth
 	{
-		get => Width;
-		set => Width = value;
+		get => _clientWidth;
+		set => Resize(X, Y, Width + value - _clientWidth, Height);
 	}
 	public bool         ClipChildren  { get; set; }
 	public bool         ClipMove      { get; set; }
@@ -111,7 +117,10 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 			{
 				if (CanUseParent(value))
 				{
+					var oldParent = _parent;
 					_parent = value;
+					if (!ReferenceEquals(oldParent, _parent))
+						OnParentChanged(oldParent, _parent);
 					if (_maximized)
 						MaximizeToParent();
 				}
@@ -128,7 +137,7 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 	public bool         IsExternal            { get; set; }
 	public bool         IsInAnimation         { get; set; }
 	public bool         IsInInOutAnimation    { get; set; }
-	public IReadOnlyCollection<TGUIAnimation> Animations => _animations;
+	public IReadOnlyCollection<GuiAnimation> Animations => _animations;
 	public string       VertSizing    { get; set; }
 	public int          Layer         { get; set; }
 	public bool         LockMouseDown         { get; set; }
@@ -176,6 +185,17 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 	public bool         ShowHint      { get; set; }
 	public bool         AlwaysOnTop           { get; set; }
 	public string       Style                 { get; set; }
+	public string       Text
+	{
+		get => _text;
+		set
+		{
+			value ??= string.Empty;
+			if (string.Equals(_text, value, StringComparison.Ordinal)) return;
+			_text = value;
+			TextChanged?.Invoke(value);
+		}
+	}
 	public bool         UseOwnProfile
 	{
 		get => _ownProfile != null;
@@ -344,18 +364,21 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 
 	public void ClearControls()
 	{
+		IGuiControl?[] controls;
 		lock (Controls)
 		{
-			foreach (var control in Controls) control?.Destroy();
+			controls = Controls.ToArray();
 			Controls.Clear();
 		}
+
+		foreach (var control in controls) control?.Destroy();
 	}
 
-	public TGUIAnimation? CreateAnimation()
+	public GuiAnimation? CreateAnimation()
 	{
 		if (_animations.Count > 999) return null;
 
-		var animation = new TGUIAnimation(this);
+		var animation = new GuiAnimation(this);
 		_animations.Add(animation);
 		IsInAnimation = true;
 		Show();
@@ -445,15 +468,20 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 		var oldY = _y;
 		var oldWidth = _width;
 		var oldHeight = _height;
+		var oldClientWidth = _clientWidth;
+		var oldClientHeight = _clientHeight;
 		var (minWidth, minHeight) = GetMinimumExtent();
 
 		_x      = x;
 		_y      = y;
 		_width  = Math.Max(width, minWidth);
 		_height = Math.Max(height, minHeight);
+		var (clientWidth, clientHeight) = GetClientSizeForBounds(_width, _height);
+		_clientWidth = Math.Max(clientWidth, 0);
+		_clientHeight = Math.Max(clientHeight, 0);
 
-		if (oldWidth != _width || oldHeight != _height)
-			OnResize(oldWidth, oldHeight, _width, _height);
+		if (oldClientWidth != _clientWidth || oldClientHeight != _clientHeight)
+			ResizeChildren(oldClientWidth, oldClientHeight, _clientWidth, _clientHeight);
 
 		if (Parent is GuiControl parent)
 			parent.OnChildResized(this);
@@ -465,7 +493,10 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 		}
 
 		if (oldWidth != _width || oldHeight != _height)
+		{
+			OnResize(oldWidth, oldHeight, _width, _height);
 			InvokeEvent("onResize", _width, _height);
+		}
 	}
 
 	public void Show() => Visible = true;
@@ -673,10 +704,34 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 			control.OnParentResized(oldWidth, oldHeight, newWidth, newHeight);
 	}
 
-	protected virtual void OnResize(int oldWidth, int oldHeight, int newWidth, int newHeight) =>
-		ResizeChildren(oldWidth, oldHeight, newWidth, newHeight);
+	protected virtual void OnResize(int oldWidth, int oldHeight, int newWidth, int newHeight)
+	{
+	}
+
+	protected virtual (int Width, int Height) GetClientSizeForBounds(int width, int height) => (width, height);
+
+	protected int ClientAreaWidth => _clientWidth;
+
+	protected int ClientAreaHeight => _clientHeight;
+
+	protected void SetClientAreaSize(int width, int height)
+	{
+		width = Math.Max(width, 0);
+		height = Math.Max(height, 0);
+		if (_clientWidth == width && _clientHeight == height) return;
+
+		var oldClientWidth = _clientWidth;
+		var oldClientHeight = _clientHeight;
+		_clientWidth = width;
+		_clientHeight = height;
+		ResizeChildren(oldClientWidth, oldClientHeight, _clientWidth, _clientHeight);
+	}
 
 	protected virtual void OnChildResized(GuiControl control)
+	{
+	}
+
+	protected virtual void OnParentChanged(IGuiControl? oldParent, IGuiControl? newParent)
 	{
 	}
 
@@ -746,8 +801,8 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 
 	protected void SetClientExtent(object? posVar)
 	{
-		var width = Width;
-		var height = Height;
+		var width = ClientWidth;
+		var height = ClientHeight;
 		switch (posVar)
 		{
 			case List<object> var:
@@ -766,9 +821,9 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 			}
 		}
 
-		Resize(X, Y, width, height);
+		Resize(X, Y, Width + width - ClientWidth, Height + height - ClientHeight);
 	}
-	private string GetClientExtent() => $"{Width} {Height}";
+	private string GetClientExtent() => $"{ClientWidth} {ClientHeight}";
 
 	protected void SetExtent(object? posVar)
 	{

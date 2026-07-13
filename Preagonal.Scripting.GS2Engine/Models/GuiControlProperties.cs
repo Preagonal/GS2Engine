@@ -7,7 +7,8 @@ public class GuiControlProperties : ScriptProperties<GuiControl>
 {
 	public GuiControlProperties() : base(typeof(ScriptVariable))
 	{
-		_ = TGUIAnimation.PropertiesInstance;
+		_ = ScriptVariable.PropertiesInstance;
+		_ = GuiAnimation.PropertiesInstance;
 
 		var propertyDefinitions = new PropertyDefinitions<GuiControl>();
 		propertyDefinitions.Add("acceptdropfiles", "", control => control.AcceptDropFiles, (control, acceptDropFiles) => control.AcceptDropFiles = acceptDropFiles);
@@ -33,6 +34,7 @@ public class GuiControlProperties : ScriptProperties<GuiControl>
 		propertyDefinitions.Add("cursor", "", control => control.Cursor, (control, cursor) => control.Cursor = cursor);
 		propertyDefinitions.Add("editing", "", control => control.Editing, (control, editing) => control.Editing = editing);
 		propertyDefinitions.Add("mode", "", control => control.Mode, (control, mode) => control.Mode = mode);
+		propertyDefinitions.Add("objecttype", "", control => control.GetType().Name);
 		propertyDefinitions.Add("extent", "", control => control.Extent, (control, extent) => control.Extent = extent);
 		propertyDefinitions.Add("fastchildrender", "", control => control.FastChildRender, (control, fastChildRender) => control.FastChildRender = fastChildRender);
 		propertyDefinitions.Add<object?>("firstresponder", "", control => control.FirstResponder, (control, firstResponder) => control.FirstResponder = GetControl(firstResponder));
@@ -66,6 +68,7 @@ public class GuiControlProperties : ScriptProperties<GuiControl>
 		propertyDefinitions.Add("showhint", "", control => control.ShowHint, (control, showHint) => control.ShowHint = showHint);
 		propertyDefinitions.Add("alwaysOnTop", "", control => control.AlwaysOnTop, (control, alwaysOnTop) => control.AlwaysOnTop = alwaysOnTop);
 		propertyDefinitions.Add("style", "", control => control.Style, (control, style) => control.Style = style);
+		propertyDefinitions.Add("text", "", control => control.Text, (control, text) => control.Text = text);
 		propertyDefinitions.Add("useownprofile", "", control => control.UseOwnProfile, (control, useOwnProfile) => control.UseOwnProfile = useOwnProfile);
 		propertyDefinitions.Add("visible", "", control => control.Visible, (control, visible) => control.Visible = visible);
 		propertyDefinitions.Add("width", "", control => control.Width, (control, width) => control.Width = width < 1 ? 1 : width);
@@ -76,6 +79,7 @@ public class GuiControlProperties : ScriptProperties<GuiControl>
 		AddProperties(this, propertyDefinitions);
 
 		var functionDefinitions = new FunctionDefinitions<GuiControl>();
+		functionDefinitions.Add<string>("objecttype", "", (control, _) => control.GetType().Name);
 		functionDefinitions.Add<int>("addcontrol", "",
 		                                 (control, o2) =>
 		                                 {
@@ -100,7 +104,9 @@ public class GuiControlProperties : ScriptProperties<GuiControl>
 		functionDefinitions.Add<object>("findcontrol", "", (control, args) => control.FindControl(GetString(args, 0)) is { } foundControl ? foundControl : 0);
 		functionDefinitions.Add<object>("getparent", "", (control, _) => control.GetParent() is { } parent ? parent : 0);
 		functionDefinitions.Add<string>("globaltolocalcoord", "", (control, args) => control.GlobalToLocalCoord(GetString(args, 0)));
+		functionDefinitions.Add<string>("gettext", "", (control, _) => control.Text);
 		functionDefinitions.Add<int>("hide", "", (control, _) => { control.Hide(); return 0; });
+		functionDefinitions.Add<bool>("isempty", "", (control, _) => string.IsNullOrEmpty(control.Text));
 		functionDefinitions.Add<bool>("isactuallyvisible", "", (control, _) => control.IsActuallyVisible());
 		functionDefinitions.Add<bool>("isfirstresponder", "", (control, _) => control.IsFirstResponder());
 		functionDefinitions.Add<bool>("ismouselocked", "", (control, args) => control.IsMouseLocked(GetInt(args, 0)));
@@ -117,6 +123,7 @@ public class GuiControlProperties : ScriptProperties<GuiControl>
 			                             return 0;
 		                             });
 		functionDefinitions.Add<int>("repaint", "", (control, _) => { control.Repaint(); return 0; });
+		functionDefinitions.Add<int>("settext", "", (control, args) => { control.Text = GetString(args, 0); return 0; });
 		functionDefinitions.Add<int>("show", "", (control, _) => { control.Show(); return 0; });
 		functionDefinitions.Add<int>("showtop", "", (control, _) => { control.ShowTop(); return 0; });
 		functionDefinitions.Add<int>("showAlwaysTop", "", (control, _) => { control.ShowAlwaysTop(); return 0; });

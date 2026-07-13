@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 namespace Preagonal.Scripting.GS2Engine.Models.Properties;
 
@@ -17,20 +18,71 @@ public readonly struct PropertyDefinition<TInstance, TRet>(string propertyName, 
 	void IPropertyDefinition<TInstance>.Write(TInstance instance, object? value)
 	{
 		if (WriteTyped is null) return;
-		// You can choose how strict you want this cast to be:
-		// direct cast if you trust callers:
-		//WriteTyped(instance, (TRet)value!);
-
-
-		if (typeof(TRet) == typeof(string))
-			value = Tools.ToScriptString(value);
-		//else
-		//	throw new ArgumentException($"Value is not convertible, {value?.GetType().FullName}", nameof(value));
-
-
-		// or a safer conversion path:
-		var v = value is TRet t ? t : (TRet)Convert.ChangeType(value!, typeof(TRet));
-		WriteTyped(instance, v);
-
+		WriteTyped(instance, ConvertValue(value));
 	}
+
+	private static TRet ConvertValue(object? value)
+	{
+		var targetType = typeof(TRet);
+		if (value is IStackEntry stackEntry)
+			value = stackEntry.GetValue();
+
+		if (value is TRet typed)
+			return typed;
+
+		if (targetType == typeof(object))
+			return (TRet)value!;
+
+		if (targetType == typeof(string))
+			return (TRet)(object)Tools.ToScriptString(value);
+
+		if (targetType == typeof(TString))
+			return (TRet)(object)(TString)Tools.ToScriptString(value);
+
+		if (targetType == typeof(bool))
+			return (TRet)(object)ToScriptBool(value);
+
+		if (targetType == typeof(double))
+			return (TRet)(object)ToScriptDouble(value);
+
+		if (targetType == typeof(int))
+			return (TRet)(object)(int)ToScriptDouble(value);
+
+		if (targetType == typeof(string[]))
+			return (TRet)(object)Tools.ToScriptString(value).Split(',', StringSplitOptions.None);
+
+		if (targetType.IsArray && value is Array array && targetType.GetElementType() is { } elementType)
+		{
+			var converted = Array.CreateInstance(elementType, array.Length);
+			for (var index = 0; index < array.Length; index++)
+				converted.SetValue(Convert.ChangeType(array.GetValue(index), elementType, CultureInfo.InvariantCulture), index);
+			return (TRet)(object)converted;
+		}
+
+		return (TRet)Convert.ChangeType(value!, targetType, CultureInfo.InvariantCulture);
+	}
+
+	private static bool ToScriptBool(object? value) =>
+		value switch
+		{
+			null => false,
+			bool b => b,
+			TString t => ToScriptBool(t.ToString()),
+			string s => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+				? Math.Abs(d) > double.Epsilon
+				: !string.IsNullOrEmpty(s),
+			IConvertible convertible => Math.Abs(Convert.ToDouble(convertible, CultureInfo.InvariantCulture)) > double.Epsilon,
+			_ => true
+		};
+
+	private static double ToScriptDouble(object? value) =>
+		value switch
+		{
+			null => 0.0d,
+			bool b => b ? 1.0d : 0.0d,
+			TString t => ToScriptDouble(t.ToString()),
+			string s => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0.0d,
+			IConvertible convertible => Convert.ToDouble(convertible, CultureInfo.InvariantCulture),
+			_ => 0.0d
+		};
 }

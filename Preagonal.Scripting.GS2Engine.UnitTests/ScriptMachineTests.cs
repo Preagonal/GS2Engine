@@ -165,8 +165,13 @@ public class ScriptMachineTests
 	private Script CompileLegacyParamsBytecodeScript(string scriptName = "legacyParamsScript") =>
 		new(_scriptManager, scriptName, CreateParamsOpcodeBytecode());
 
-	private Script CompileRawBytecodeScript(IReadOnlyCollection<byte> code, IReadOnlyList<string>? strings = null, string scriptName = "rawScript") =>
-		new(_scriptManager, scriptName, CreateRawReturnBytecode(code, strings));
+	private Script CompileRawBytecodeScript(
+		IReadOnlyCollection<byte> code,
+		IReadOnlyList<string>? strings = null,
+		string scriptName = "rawScript",
+		ScriptCallArgumentOrder callArgumentOrder = ScriptCallArgumentOrder.Compiler
+	) =>
+		new(_scriptManager, scriptName, CreateRawReturnBytecode(code, strings), callArgumentOrder: callArgumentOrder);
 
 	private static byte[] CreateRawReturnBytecode(IReadOnlyCollection<byte> code, IReadOnlyList<string>? strings)
 	{
@@ -367,6 +372,42 @@ public class ScriptMachineTests
 
 		//Assert
 		for (var i = 0; i < 4; i++) Assert.Equal(expectedCos[i], cos[i]);
+	}
+
+	[Fact]
+	public async Task Given_string_When_calling_lowercase_member_function_Then_lowercase_string_should_be_returned()
+	{
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				temp.value = "Login_Icon.PNG";
+				return temp.value.lowercase();
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		var result = await script.Call("onCreated");
+
+		Assert.Equal("login_icon.png", result.GetValue<TString>()!);
+	}
+
+	[Fact]
+	public async Task Given_string_When_calling_replaceall_member_function_Then_replaced_string_should_be_returned()
+	{
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				temp.value = "Zelda: A Link";
+				return temp.value.replaceAll(" ", "_").replaceAll(":", "");
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		var result = await script.Call("onCreated");
+
+		Assert.Equal("Zelda_A_Link", result.GetValue<TString>()!);
 	}
 
 	[Fact]
@@ -639,6 +680,41 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal("from-class-event", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_joined_class_function_calls_global_command_When_reading_current_receiver_Then_receiver_is_joined_object()
+	{
+		string? receiverName = null;
+		_scriptManager.RegisterGlobalVariable(
+			"capturereceiver",
+			(Script.Command)((machine, _) =>
+			{
+				receiverName = machine.CurrentReceiver.Name;
+				return 0.ToStackEntry();
+			})
+		);
+		const string classText =
+			"""
+						//#CLIENTSIDE
+						function Capture() {
+							capturereceiver();
+						}
+			""";
+		CompileScript(classText, "joinedclass");
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							this.join("joinedclass");
+							Capture();
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		await script.Call("onCreated");
+
+		Assert.Equal("testScript", receiverName);
 	}
 
 	[Fact]
@@ -1159,6 +1235,66 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_assignment_after_false_and_or_expression_When_executing_Then_original_target_is_assigned()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function isFalse() {
+							return false;
+						}
+
+						function onCreated() {
+							result = 1;
+							result = isFalse() && "" == "x" || "".pos("toon") >= 0;
+							return result;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.False(result.GetValue<bool>());
+	}
+
+	[Fact]
+	public async Task Given_or_opcode_without_operand_When_executing_Then_missing_operand_defaults_to_false()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_OR,
+			0xF3,
+			2,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_and_opcode_without_operand_When_executing_Then_missing_operand_defaults_to_false()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_AND,
+			0xF3,
+			2,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
 	public async Task Given_array_When_add_called_Then_appends_value()
 	{
 		//Arrange
@@ -1372,6 +1508,46 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_string_When_starts_matches_prefix_Then_true_is_returned()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							return "P Login".starts("P ");
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(1.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_string_When_starts_does_not_match_prefix_Then_false_is_returned()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							return "P Login".starts("H ");
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
 	public async Task Given_member_access_opcode_without_member_name_When_executing_Then_missing_member_defaults_to_zero()
 	{
 		//Arrange
@@ -1392,6 +1568,51 @@ public class ScriptMachineTests
 		//Arrange
 		var script = CompileRawBytecodeScript([
 			(byte)Opcode.OP_CONV_TO_OBJECT,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_new_object_opcode_without_operands_When_executing_Then_missing_operands_default_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_NEW_OBJECT,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_makevar_opcode_without_operand_When_executing_Then_missing_name_defaults_to_empty_variable()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_MAKEVAR,
+		]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(0.0d, result.GetValue());
+	}
+
+	[Fact]
+	public async Task Given_object_from_string_opcode_without_operand_When_executing_Then_missing_name_defaults_to_zero()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_OBJ_FROM_STR,
 		]);
 
 		//Act
@@ -1690,6 +1911,35 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_with_block_member_object_When_member_function_is_called_Then_member_object_is_used()
+	{
+		//Arrange
+		_receivedStrings.Clear();
+		_calledTimes = 0;
+		_scriptManager.RegisterObjectCreator("MemberFunctionParent", (id, _) => new ScriptVariable(id));
+		_scriptManager.RegisterObjectCreator("MemberFunctionChild", (id, _) => new MemberFunctionChildObject(id));
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							parent = new MemberFunctionParent("parent");
+							parent.child = new MemberFunctionChild("child");
+							with (parent) {
+								child.mark();
+							}
+							return parent.child.called;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(1.0d, result.GetValue<double>());
+	}
+
+	[Fact]
 	public async Task Given_new_object_name_operand_is_variable_When_variable_has_value_Then_creator_receives_operand_name()
 	{
 		//Arrange
@@ -1791,6 +2041,40 @@ public class ScriptMachineTests
 		Assert.Equal(0, instance.ParentValue);
 		Assert.Equal(7, instance.ChildValue);
 		Assert.Single(properties, prop => prop.PropertyName == "value");
+	}
+
+	[Fact]
+	public void Given_script_property_When_object_property_is_written_with_script_variable_Then_value_is_assigned()
+	{
+		//Arrange
+		var properties = new ObjectPropertyWriteTestProperties();
+		properties.Compile();
+		var instance = new ObjectPropertyWriteTestObject();
+		var value = new ScriptVariable("value");
+		var property = properties.First(property => property.PropertyName == "objectvalue");
+
+		//Act
+		property.Write(instance, value);
+
+		//Assert
+		Assert.Same(value, instance.ObjectValue);
+	}
+
+	[Fact]
+	public void Given_script_property_When_tstring_property_is_written_with_string_Then_value_is_assigned_as_tstring()
+	{
+		//Arrange
+		var properties = new TStringPropertyWriteTestProperties();
+		properties.Compile();
+		var instance = new TStringPropertyWriteTestObject();
+		var property = properties.First(property => property.PropertyName == "scriptstring");
+
+		//Act
+		property.Write(instance, "value");
+
+		//Assert
+		Assert.Equal(typeof(TString), instance.ScriptString.GetType());
+		Assert.Equal("value", instance.ScriptString.ToString());
 	}
 
 	[Fact]
@@ -2146,6 +2430,62 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_assignment_expression_When_compared_Then_assigned_value_is_used()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							temp.found = -1;
+
+							if ((temp.found = 3) != -1) {
+								return temp.found;
+							}
+
+							return 0;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(3.0d, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_assignment_expression_in_while_When_condition_is_false_Then_loop_exits()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							temp.i = 0;
+							temp.count = 0;
+
+							while ((temp.i = temp.i + 1) != 3) {
+								temp.count++;
+								if (temp.count > 5) {
+									return -99;
+								}
+							}
+
+							return temp.count;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(2.0d, result.GetValue<double>());
+	}
+
+	[Fact]
 	public async Task Given_old_object_from_string_bytecode_When_targeting_this_child_Then_script_variable_is_returned()
 	{
 		//Arrange
@@ -2179,6 +2519,277 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal("right", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_nested_enumerable_call_argument_When_accessing_nested_index_Then_indexed_value_is_returned()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							return params[0][0][1];
+						}
+			""";
+		var script = CompileScript(scriptText);
+		object entries = new object?[] { new object?[] { "alpha", "beta" } };
+
+		//Act
+		var result = await script.Call("onCreated", entries);
+
+		//Assert
+		Assert.Equal("beta", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_nested_enumerable_named_parameter_When_accessing_nested_index_Then_indexed_value_is_returned()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onReceiveText(texttype, textoption, textlines) {
+							return texttype @ ":" @ textoption @ ":" @ textlines[0][1];
+						}
+			""";
+		var script = CompileScript(scriptText);
+		object textLines = new object?[] { new object?[] { "alpha", "beta" } };
+
+		//Act
+		var result = await script.Call("onReceiveText", "lister", "simpleserverlist", textLines);
+
+		//Assert
+		Assert.Equal("lister:simpleserverlist:beta", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_switch_on_named_parameter_When_case_matches_Then_case_body_is_executed()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function handleServerListerData(textoption, textlines) {
+							switch (textoption) {
+								case "simpleserverlist":
+									this.received = textlines[0][1];
+									break;
+							}
+
+							return this.received;
+						}
+			""";
+		var script = CompileScript(scriptText);
+		object textLines = new object?[] { new object?[] { "alpha", "beta" } };
+
+		//Act
+		var result = await script.Call("handleServerListerData", "simpleserverlist", textLines);
+
+		//Assert
+		Assert.Equal("beta", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_nested_parameter_array_assigned_to_member_When_indexing_local_entry_Then_first_value_is_returned()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function handleServerListerData(textlines) {
+							this.serverlistentries = textlines;
+							temp.entry = this.serverlistentries[0];
+							return temp.entry[0] @ ":" @ temp.entry[1];
+						}
+			""";
+		var script = CompileScript(scriptText);
+		object textLines = new object?[] { new object?[] { "Zelda: A Link to the Past", "P Zelda: A Link to the Past", "0" } };
+
+		//Act
+		var result = await script.Call("handleServerListerData", textLines);
+
+		//Assert
+		Assert.Equal("Zelda: A Link to the Past:P Zelda: A Link to the Past", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_replaceall_helper_with_unset_found_variable_When_called_Then_loop_runs_with_zero_default()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							return replaceAll("Zelda: A Link", " ", "_");
+						}
+
+						public function replaceAll(temp.text, temp.match, temp.replace) {
+							temp.prev = 0;
+							temp.output = "";
+							while (temp.found != -1) {
+								temp.found = indexOf(temp.text, temp.match, temp.prev);
+								if (temp.found == -1) {
+									temp.output @= temp.text.substring(int(temp.prev), -1);
+									return temp.output;
+								} else {
+									temp.output @= temp.text.substring(int(temp.prev), temp.found - temp.prev) @ temp.replace;
+									temp.prev = temp.found + temp.match.length();
+								}
+							}
+							return temp.output;
+						}
+
+						public function indexOf(temp.text, temp.match, temp.offset) {
+							for (temp.i = temp.offset; temp.i < temp.text.length(); temp.i ++) {
+								if (temp.text.substring(int(temp.i), temp.match.length()) == temp.match) {
+									return temp.i;
+								}
+							}
+							return -1;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("Zelda:_A_Link", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_replaceall_helper_called_twice_When_first_call_leaves_found_minus_one_Then_second_call_uses_fresh_temp()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							replaceAll("Alpha", " ", "_");
+							return replaceAll("Zelda: A Link", " ", "_");
+						}
+
+						public function replaceAll(temp.text, temp.match, temp.replace) {
+							temp.prev = 0;
+							temp.output = "";
+							while (temp.found != -1) {
+								temp.found = indexOf(temp.text, temp.match, temp.prev);
+								if (temp.found == -1) {
+									temp.output @= temp.text.substring(int(temp.prev), -1);
+									return temp.output;
+								} else {
+									temp.output @= temp.text.substring(int(temp.prev), temp.found - temp.prev) @ temp.replace;
+									temp.prev = temp.found + temp.match.length();
+								}
+							}
+							return temp.output;
+						}
+
+						public function indexOf(temp.text, temp.match, temp.offset) {
+							for (temp.i = temp.offset; temp.i < temp.text.length(); temp.i ++) {
+								if (temp.text.substring(int(temp.i), temp.match.length()) == temp.match) {
+									return temp.i;
+								}
+							}
+							return -1;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("Zelda:_A_Link", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_script_function_call_with_multiple_arguments_When_called_from_script_Then_argument_order_is_preserved()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							return helper("left", "right");
+						}
+
+						function helper(first, second) {
+							return first @ ":" @ second;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("left:right", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_native_global_function_call_with_multiple_arguments_When_called_from_script_Then_argument_order_is_preserved()
+	{
+		//Arrange
+		ScriptProperties<ScriptUniverse>.AddFunctions(
+			null,
+			new()
+			{
+				{
+					"adventure_setserver",
+					"",
+					(_, args) => string.Join("|", args.Select(arg => arg.GetValue()?.ToString() ?? string.Empty))
+				}
+			}
+		);
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							return adventure_setserver("loginserver.graal.in", 14911);
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("loginserver.graal.in|14911", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_nested_function_switch_after_outer_condition_When_case_matches_Then_case_body_is_executed()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							if ("lister" == "lister") {
+								return handleServerListerData("simpleserverlist");
+							}
+
+							return "not-called";
+						}
+
+						function handleServerListerData(textoption) {
+							switch (textoption) {
+								case "simpleserverlist":
+									return "ok";
+							}
+
+							return "missing";
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("ok", result.GetValue()?.ToString());
 	}
 
 	[Fact]
@@ -2918,6 +3529,31 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_with_control_When_this_is_used_Then_this_resolves_to_with_target()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							parent = new GuiControl("parent");
+							with (parent) {
+								this.text = "current";
+							}
+
+							return parent.text;
+						}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("current", result.GetValue()?.ToString());
+	}
+
+	[Fact]
 	public async Task Given_with_control_When_child_is_created_inside_with_Then_child_is_resolved_from_with_target()
 	{
 		//Arrange
@@ -3463,7 +4099,7 @@ public class ScriptMachineTests
 	{
 		//Arrange
 		var control = new GuiControl("ctrl", null!) { Bounds = "2 3 40 50" };
-		var animation = new TGUIAnimation(control);
+		var animation = new GuiAnimation(control);
 
 		//Assert
 		Assert.Equal("2 3 40 50", animation.Bounds);
@@ -4153,6 +4789,265 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_missing_this_member_When_incrementing_Then_member_is_created_and_incremented()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				this.testcounter++;
+
+				return this.testcounter;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(1.0d, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_temp_member_When_incrementing_Then_member_is_incremented()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				temp.i = 0;
+				temp.i++;
+
+				return temp.i;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(1.0d, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_with_member_When_incrementing_Then_member_is_incremented()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				new GuiControl("test") {
+					for (i = 0; i < 3; ++i) {
+					}
+				}
+
+				return test.i;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(3.0d, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_object_with_block_in_for_loop_When_incrementing_Then_loop_exits()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				new GuiControl("child0") {}
+				new GuiControl("child1") {}
+				new GuiControl("child2") {}
+
+				for (i = 0; i < 3; ++i) {
+					with ("child" @ i) {
+						visited = i;
+					}
+				}
+
+				return i @ "|" @ child2.visited;
+			}
+			""";
+		var script = CompileScript(scriptText);
+		var oldDebug = Tools.DEBUG_ON;
+		Tools.DEBUG_ON = false;
+
+		try
+		{
+			//Act
+			var result = await script.Call("onCreated");
+
+			//Assert
+			Assert.Equal("3|2", result.GetValue()?.ToString());
+		}
+		finally
+		{
+			Tools.DEBUG_ON = oldDebug;
+		}
+	}
+
+	[Fact]
+	public async Task Given_temp_member_exists_When_reading_and_writing_bare_name_Then_temp_member_is_used()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				temp.i = 1;
+				i = 2;
+				i++;
+
+				return i @ "|" @ temp.i;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("3|3", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_object_event_called_during_execution_When_event_writes_temp_Then_caller_reads_updated_temp()
+	{
+		//Arrange
+		Script? script = null;
+		ScriptProperties<ScriptMachineTests>.AddFunctions(
+			null,
+			new()
+			{
+				{
+					"fireobjectevent",
+					"",
+					(_, _) =>
+					{
+						script!.Call("target.onAction").ConfigureAwait(false).GetAwaiter().GetResult();
+						return 0;
+					}
+				}
+			}
+		);
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				temp.value = "before";
+				fireobjectevent();
+
+				return temp.value;
+			}
+
+			function target.onAction() {
+				temp.value = "after";
+			}
+			""";
+		script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("after", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_tmp_member_exists_When_reading_and_writing_bare_name_Then_tmp_member_is_not_used()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				tmp.i = 1;
+				i = 2;
+				i++;
+
+				return i @ "|" @ tmp.i;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("3|1", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_nested_function_uses_same_temp_name_When_returning_to_caller_Then_caller_temp_is_preserved()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function helper() {
+				for (i = 0; i < 25; i++) {
+				}
+			}
+
+			function onCreated() {
+				temp.rows = {"a", "b", "c"};
+				temp.count = 0;
+
+				for (i = 0; i < temp.rows.size(); i++) {
+					helper();
+					temp.count++;
+				}
+
+				return temp.count;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal(3.0d, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_temp_member_exists_inside_with_When_reading_and_writing_bare_name_Then_temp_member_is_used()
+	{
+		//Arrange
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				temp.i = 1;
+				new GuiControl("test") {
+					i = 2;
+					i++;
+				}
+
+				return temp.i @ "|" @ test.i;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("3|", result.GetValue()?.ToString());
+	}
+
+	[Fact]
 	public async Task Given_bytecode_optimizer_When_registered_variable_is_decremented_Then_optimized_decrement_is_used()
 	{
 		//Arrange
@@ -4321,6 +5216,122 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_original_bytecode_command_call_When_arguments_are_emitted_right_to_left_Then_command_receives_source_order()
+	{
+		//Arrange
+		_scriptManager.RegisterGlobalVariable(
+			"captureargs",
+			(Script.Command)((_, args) =>
+				string.Join("|", (args ?? []).Select(arg => arg.GetValue()?.ToString() ?? string.Empty)).ToStackEntry())
+		);
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_TYPE_ARRAY,
+			(byte)Opcode.OP_TYPE_STRING,
+			0xF0,
+			1,
+			(byte)Opcode.OP_TYPE_STRING,
+			0xF0,
+			0,
+			(byte)Opcode.OP_TYPE_VAR,
+			0xF0,
+			2,
+			(byte)Opcode.OP_CALL,
+		], ["first", "second", "captureargs"], callArgumentOrder: ScriptCallArgumentOrder.Original);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("first|second", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_original_bytecode_script_property_call_When_arguments_are_emitted_right_to_left_Then_property_receives_source_order()
+	{
+		//Arrange
+		ScriptProperties<ScriptMachineTests>.AddFunctions(
+			null,
+			new()
+			{
+				{
+					"capturepropertyargs",
+					"",
+					(_, args) => string.Join("|", args.Select(arg => arg.GetValue()?.ToString() ?? string.Empty))
+				},
+			}
+		);
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_TYPE_ARRAY,
+			(byte)Opcode.OP_TYPE_STRING,
+			0xF0,
+			1,
+			(byte)Opcode.OP_TYPE_STRING,
+			0xF0,
+			0,
+			(byte)Opcode.OP_TYPE_VAR,
+			0xF0,
+			2,
+			(byte)Opcode.OP_CALL,
+		], ["first", "second", "capturepropertyargs"], callArgumentOrder: ScriptCallArgumentOrder.Original);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("first|second", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_original_bytecode_string_method_When_calling_lowercase_Then_receiver_property_function_is_called()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_TYPE_ARRAY,
+			(byte)Opcode.OP_TYPE_STRING,
+			0xF0,
+			0,
+			(byte)Opcode.OP_TYPE_VAR,
+			0xF0,
+			1,
+			(byte)Opcode.OP_CALL,
+		], ["Login_Icon.PNG", "lowercase"], callArgumentOrder: ScriptCallArgumentOrder.Original);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("login_icon.png", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_original_bytecode_string_method_When_calling_replaceall_Then_receiver_property_function_gets_arguments_in_source_order()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_TYPE_ARRAY,
+			(byte)Opcode.OP_TYPE_STRING,
+			0xF0,
+			0,
+			(byte)Opcode.OP_TYPE_STRING,
+			0xF0,
+			1,
+			(byte)Opcode.OP_TYPE_STRING,
+			0xF0,
+			2,
+			(byte)Opcode.OP_TYPE_VAR,
+			0xF0,
+			3,
+			(byte)Opcode.OP_CALL,
+		], ["_", " ", "Zelda: A Link", "replaceAll"], callArgumentOrder: ScriptCallArgumentOrder.Original);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("Zelda:_A_Link", result.GetValue()?.ToString());
+	}
+
+	[Fact]
 	public async Task Given_bytecode_optimizer_When_number_is_followed_by_array_access_Then_optimized_immediate_array_access_is_used()
 	{
 		//Arrange
@@ -4342,6 +5353,50 @@ public class ScriptMachineTests
 		Assert.Equal(Opcode.OP_UNKNOWN_240, script.Bytecode[1].OpCode);
 		Assert.Equal(Opcode.OP_NONE, script.Bytecode[2].OpCode);
 		Assert.Equal("8", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_array_literal_When_reading_cells_Then_source_order_is_preserved()
+	{
+		//Arrange
+		var script = CompileScript(
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							temp.values = {"Playerworlds", "Wow", "Graal 3D", "Classics"};
+
+							return temp.values[0] @ "|" @ temp.values[3];
+						}
+			"""
+		);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("Playerworlds|Classics", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_string_array_When_reading_out_of_range_cell_Then_empty_string_is_returned()
+	{
+		//Arrange
+		var script = CompileScript(
+			"""
+						//#CLIENTSIDE
+						function onCreated() {
+							temp.values = {"Classics", "Playerworlds"};
+
+							return temp.values[4] @ "Servers";
+						}
+			"""
+		);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("Servers", result.GetValue()?.ToString());
 	}
 
 	[Fact]
@@ -5104,6 +6159,34 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public void Given_gui_control_When_clientwidth_changes_Then_outer_width_changes_by_client_delta()
+	{
+		//Arrange
+		var control = new InsetGuiControl("control", null!) { Width = 110, Height = 70 };
+
+		//Act
+		control.ClientWidth = 150;
+
+		//Assert
+		Assert.Equal(160, control.Width);
+	}
+
+	[Fact]
+	public void Given_gui_control_child_When_parent_clientwidth_changes_Then_child_width_sizing_uses_client_delta()
+	{
+		//Arrange
+		var parent = new InsetGuiControl("parent", null!) { Width = 110, Height = 70 };
+		var child = new GuiControl("child", null!) { X = 10, Y = 5, Width = 20, Height = 10, HorizSizing = "width" };
+		parent.AddControl(child);
+
+		//Act
+		parent.ClientWidth = 150;
+
+		//Assert
+		Assert.Equal(70, child.Width);
+	}
+
+	[Fact]
 	public void Given_gui_control_When_set_size_is_called_Then_size_changes_without_moving_control()
 	{
 		//Arrange
@@ -5227,6 +6310,12 @@ public class ScriptMachineTests
 		public override void Draw() => parent.AddControl(childToAdd);
 	}
 
+	private sealed class InsetGuiControl(string id, Script script) : GuiControl(id, script)
+	{
+		protected override (int Width, int Height) GetClientSizeForBounds(int width, int height) =>
+			(Math.Max(0, width - 10), Math.Max(0, height - 20));
+	}
+
 	private class ParentPropertyMergeTestObject
 	{
 		public int ParentValue { get; set; }
@@ -5262,6 +6351,82 @@ public class ScriptMachineTests
 					{ "value", "", value => value.ChildValue, (value, propertyValue) => value.ChildValue = propertyValue }
 				}
 			);
+		}
+	}
+
+	private sealed class ObjectPropertyWriteTestObject
+	{
+		public object? ObjectValue { get; set; }
+	}
+
+	private sealed class ObjectPropertyWriteTestProperties : ScriptProperties<ObjectPropertyWriteTestObject>
+	{
+		public ObjectPropertyWriteTestProperties() : base(null)
+		{
+			AddProperties(
+				this,
+				new PropertyDefinitions<ObjectPropertyWriteTestObject>
+				{
+					{ "objectvalue", "", value => value.ObjectValue, (value, propertyValue) => value.ObjectValue = propertyValue }
+				}
+			);
+		}
+	}
+
+	private sealed class TStringPropertyWriteTestObject
+	{
+		public TString ScriptString { get; set; } = string.Empty;
+	}
+
+	private sealed class TStringPropertyWriteTestProperties : ScriptProperties<TStringPropertyWriteTestObject>
+	{
+		public TStringPropertyWriteTestProperties() : base(null)
+		{
+			AddProperties(
+				this,
+				new PropertyDefinitions<TStringPropertyWriteTestObject>
+				{
+					{ "scriptstring", "", value => value.ScriptString, (value, propertyValue) => value.ScriptString = propertyValue }
+				}
+			);
+		}
+	}
+
+	private sealed class MemberFunctionChildObject(string name) : ScriptVariable(name)
+	{
+		public new static readonly MemberFunctionChildProperties PropertiesInstance = [];
+		public override            IScriptProperties             Properties => PropertiesInstance;
+
+		public bool Called { get; set; }
+	}
+
+	private sealed class MemberFunctionChildProperties : ScriptProperties<MemberFunctionChildObject>
+	{
+		public MemberFunctionChildProperties() : base(typeof(ScriptVariable))
+		{
+			AddProperties(
+				this,
+				new PropertyDefinitions<MemberFunctionChildObject>
+				{
+					{ "called", "", value => value.Called }
+				}
+			);
+			AddFunctions(
+				this,
+				new FunctionDefinitions<MemberFunctionChildObject>
+				{
+					{
+						"mark",
+						"",
+						(value, _) =>
+						{
+							value.Called = true;
+							return 0;
+						}
+					}
+				}
+			);
+			Compile();
 		}
 	}
 }

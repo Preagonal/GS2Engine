@@ -5,16 +5,11 @@ using Preagonal.Scripting.GS2Engine.Extensions;
 
 namespace Preagonal.Scripting.GS2Engine.Models;
 
-public class ScriptVariable : VariableCollection, IScriptVariable
+public class ScriptVariable(string name = "") : VariableCollection, IScriptVariable
 {
 	private readonly List<string> _joinedClasses = [];
 
-	public ScriptVariable(string name = "")
-	{
-		Name = name;
-	}
-
-	public string Name { get; protected set; }
+	public string                Name             { get; protected set; } = name;
 	public IReadOnlyList<string> JoinedClassNames => _joinedClasses;
 
 	public string JoinedClasses

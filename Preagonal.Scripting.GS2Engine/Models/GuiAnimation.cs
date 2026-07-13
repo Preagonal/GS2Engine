@@ -1,18 +1,13 @@
 namespace Preagonal.Scripting.GS2Engine.Models;
 
-public class TGUIAnimation : ScriptVariable
+public class GuiAnimation(GuiControl owner) : ScriptVariable("animation")
 {
 	private string? _bounds;
 
-	public TGUIAnimation(GuiControl owner) : base("animation")
-	{
-		Owner = owner;
-	}
-
-	public new static readonly TGUIAnimationProperties PropertiesInstance = [];
+	public new static readonly GuiAnimationProperties PropertiesInstance = [];
 	public override IScriptProperties Properties => PropertiesInstance;
 
-	public GuiControl Owner { get; }
+	public GuiControl Owner { get; } = owner;
 
 	public double CurrentTime { get; set; }
 	public double Alpha { get; set; } = 1;

@@ -53,7 +53,9 @@ public class ScriptProperty<TInstance> : IScriptProperty where TInstance : class
 	}
 
 	object? IScriptProperty.Call(object instance, params IStackEntry[] value) =>
-		CallTyped?.Invoke((TInstance)instance, value);
+		CallTyped != null
+			? CallTyped.Invoke((TInstance)instance, value)
+			: ReadTyped?.Invoke((TInstance)instance);
 
 	public void SetCallback(CallbackDelegate callback) => Callback = callback;
 }

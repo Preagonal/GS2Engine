@@ -97,6 +97,21 @@ public class StackEntryExtensionsTests
 	}
 
 	[Fact]
+	public void Given_stack_entry_When_string_value_is_set_Then_value_type_is_TString()
+	{
+		//Arrange
+		var test = "old".ToStackEntry();
+
+		//Act
+		test.SetValue("new");
+
+		//Assert
+		Assert.Equal(StackEntryType.String, test.Type);
+		Assert.Equal(typeof(TString), test.GetValue()?.GetType());
+		Assert.Equal("new", test.GetValue()?.ToString());
+	}
+
+	[Fact]
 	public void When_input_is_TString_Then_return_StackEntry_with_type_string_and_value_type_TString()
 	{
 		//Arrange

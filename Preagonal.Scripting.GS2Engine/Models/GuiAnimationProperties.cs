@@ -2,11 +2,11 @@ using Preagonal.Scripting.GS2Engine.Models.Properties;
 
 namespace Preagonal.Scripting.GS2Engine.Models;
 
-public class TGUIAnimationProperties : ScriptProperties<TGUIAnimation>
+public class GuiAnimationProperties : ScriptProperties<GuiAnimation>
 {
-	public TGUIAnimationProperties() : base(typeof(ScriptVariable))
+	public GuiAnimationProperties() : base(typeof(ScriptVariable))
 	{
-		var properties = new PropertyDefinitions<TGUIAnimation>
+		var properties = new PropertyDefinitions<GuiAnimation>
 		{
 			{ "currenttime", "", animation => animation.CurrentTime, (animation, value) => animation.CurrentTime = value },
 			{ "alpha", "", animation => animation.Alpha, (animation, value) => animation.Alpha = value },

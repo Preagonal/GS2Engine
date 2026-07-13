@@ -27,7 +27,6 @@ public class Script : ScriptVariable
 	public readonly            ScriptVariable?                    RefObject = null;
 	public                     bool                               ExecutionEnabled { get; private set; } = true;
 	public                     bool                               HasOnlyFunctions { get; private set; } = true;
-	public                     ScriptCallArgumentOrder            CallArgumentOrder { get; private set; } = ScriptCallArgumentOrder.Compiler;
 	public                     TString                            File             { get; set; }
 	public                     ScriptType                         Type             { get; }
 	private                    int                                Gs1Flags         { get; set; }
@@ -52,8 +51,7 @@ public class Script : ScriptVariable
 		IScriptManager scriptManager,
 		TString bytecodeFile,
 		ScriptVariable? refObject = null,
-		ScriptType? type = null,
-		ScriptCallArgumentOrder callArgumentOrder = ScriptCallArgumentOrder.Compiler
+		ScriptType? type = null
 	)
 	{
 		_             = Properties;
@@ -63,7 +61,6 @@ public class Script : ScriptVariable
 		RefObject = refObject;
 		Machine   = new(this);
 		Type      = type ?? ScriptType.Weapon;
-		CallArgumentOrder = callArgumentOrder;
 
 		SetStream(ReadAllBytes(bytecodeFile));
 
@@ -75,8 +72,7 @@ public class Script : ScriptVariable
 		TString name,
 		byte[] bytecode,
 		ScriptVariable? refObject = null,
-		ScriptType? type = null,
-		ScriptCallArgumentOrder callArgumentOrder = ScriptCallArgumentOrder.Compiler
+		ScriptType? type = null
 	)
 	{
 		_             = Properties;
@@ -86,7 +82,6 @@ public class Script : ScriptVariable
 		RefObject     = refObject;
 		Machine       = new(this);
 		Type          = type ?? ScriptType.Weapon;
-		CallArgumentOrder = callArgumentOrder;
 
 		SetStream(bytecode);
 
@@ -98,21 +93,19 @@ public class Script : ScriptVariable
 		ScriptManager.UnregisterGlobalScript(this);
 	}
 
-	public void UpdateFromFile(string scriptFile, ScriptCallArgumentOrder callArgumentOrder = ScriptCallArgumentOrder.Compiler)
+	public void UpdateFromFile(string scriptFile)
 	{
 		Name = Path.GetFileNameWithoutExtension(scriptFile);
 		File = scriptFile;
-		CallArgumentOrder = callArgumentOrder;
 		SetStream(ReadAllBytes(scriptFile));
 
 		Init();
 	}
 
-	public void UpdateFromByteCode(TString name, byte[] byteCode, ScriptCallArgumentOrder callArgumentOrder = ScriptCallArgumentOrder.Compiler)
+	public void UpdateFromByteCode(TString name, byte[] byteCode)
 	{
 		Name = name;
 		File = "";
-		CallArgumentOrder = callArgumentOrder;
 		SetStream(byteCode);
 
 		Init();

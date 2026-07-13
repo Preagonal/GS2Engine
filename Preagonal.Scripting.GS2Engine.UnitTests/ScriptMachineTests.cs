@@ -168,10 +168,9 @@ public class ScriptMachineTests
 	private Script CompileRawBytecodeScript(
 		IReadOnlyCollection<byte> code,
 		IReadOnlyList<string>? strings = null,
-		string scriptName = "rawScript",
-		ScriptCallArgumentOrder callArgumentOrder = ScriptCallArgumentOrder.Compiler
+		string scriptName = "rawScript"
 	) =>
-		new(_scriptManager, scriptName, CreateRawReturnBytecode(code, strings), callArgumentOrder: callArgumentOrder);
+		new(_scriptManager, scriptName, CreateRawReturnBytecode(code, strings));
 
 	private static byte[] CreateRawReturnBytecode(IReadOnlyCollection<byte> code, IReadOnlyList<string>? strings)
 	{
@@ -5236,7 +5235,7 @@ public class ScriptMachineTests
 			0xF0,
 			2,
 			(byte)Opcode.OP_CALL,
-		], ["first", "second", "captureargs"], callArgumentOrder: ScriptCallArgumentOrder.Original);
+		], ["first", "second", "captureargs"]);
 
 		//Act
 		var result = await script.Call("onCreated");
@@ -5272,7 +5271,7 @@ public class ScriptMachineTests
 			0xF0,
 			2,
 			(byte)Opcode.OP_CALL,
-		], ["first", "second", "capturepropertyargs"], callArgumentOrder: ScriptCallArgumentOrder.Original);
+		], ["first", "second", "capturepropertyargs"]);
 
 		//Act
 		var result = await script.Call("onCreated");
@@ -5294,7 +5293,7 @@ public class ScriptMachineTests
 			0xF0,
 			1,
 			(byte)Opcode.OP_CALL,
-		], ["Login_Icon.PNG", "lowercase"], callArgumentOrder: ScriptCallArgumentOrder.Original);
+		], ["Login_Icon.PNG", "lowercase"]);
 
 		//Act
 		var result = await script.Call("onCreated");
@@ -5322,7 +5321,7 @@ public class ScriptMachineTests
 			0xF0,
 			3,
 			(byte)Opcode.OP_CALL,
-		], ["_", " ", "Zelda: A Link", "replaceAll"], callArgumentOrder: ScriptCallArgumentOrder.Original);
+		], ["_", " ", "Zelda: A Link", "replaceAll"]);
 
 		//Act
 		var result = await script.Call("onCreated");

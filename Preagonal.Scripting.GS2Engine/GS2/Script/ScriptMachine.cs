@@ -270,9 +270,6 @@ public class ScriptMachine
 						if (parameterEntryValue != null)
 							callParams.Add(parameterEntryValue.ToStackEntry());
 					}
-					var orderedCallParams    = callParams;
-					var orderedRawCallParams = rawCallParams;
-
 					while (stack.Count > 0 && stack.Peek().Type != ArrayStart) stack.Pop();
 					if (stack.Count > 0) stack.Pop();
 					if (rawCallEntry.Type is StackEntryType.String or Variable &&
@@ -290,7 +287,7 @@ public class ScriptMachine
 						callEntry = receiverFunctionEntry;
 						cmd       = GetEntryValue<object>(callEntry, returnStackEntryIfNotFound: true);
 					}
-					Tools.DebugLine($"[SCRIPT] call {_script.Name}.{normalizedFunctionName} -> {rawCommand} ({callEntry.Type}) params={orderedCallParams.Count} rawparams={orderedRawCallParams.Count}");
+					Tools.DebugLine($"[SCRIPT] call {_script.Name}.{normalizedFunctionName} -> {rawCommand} ({callEntry.Type}) params={callParams.Count} rawparams={rawCallParams.Count}");
 					switch (callEntry.Type)
 					{
 							case StackEntryType.String or Variable
@@ -322,14 +319,14 @@ public class ScriptMachine
 							break;
 							case StackEntryType.String or Variable
 								when TryGetJoinedClassFunction(ThisObject, cmd?.ToString() ?? string.Empty, out var joinedFunction):
-								stack.Push(joinedFunction.Invoke(this, orderedCallParams.ToArray()));
+								stack.Push(joinedFunction.Invoke(this, callParams.ToArray()));
 								break;
 							case StackEntryType.String or Variable
-								when TryCallBuiltInFunction(cmd?.ToString(), orderedCallParams, orderedRawCallParams, out var builtInResult):
+								when TryCallBuiltInFunction(cmd?.ToString(), callParams, rawCallParams, out var builtInResult):
 								stack.Push(builtInResult);
 								break;
 							case StackEntryType.String or Variable
-								when TryCallReceiverPropertyFunction(cmd?.ToString(), orderedCallParams, out var receiverResult):
+								when TryCallReceiverPropertyFunction(cmd?.ToString(), callParams, out var receiverResult):
 								stack.Push(receiverResult);
 								break;
 
@@ -347,7 +344,7 @@ public class ScriptMachine
 							break;
 						case Function:
 							stack.Push(
-									(cmd as Script.Command)?.Invoke(this, orderedCallParams.ToArray()) ?? 0.ToStackEntry()
+									(cmd as Script.Command)?.Invoke(this, callParams.ToArray()) ?? 0.ToStackEntry()
 								);
 								break;
 						case ScriptProperty:
@@ -359,7 +356,7 @@ public class ScriptMachine
 							if (scriptProperty != null && inst == null && opWith is { Count: > 0 })
 								inst = ResolveScriptPropertyInstance(scriptProperty, opWith.Peek().GetValue());
 
-							stack.Push((scriptProperty?.Call(inst!, orderedCallParams.ToArray()) ?? 0).ToStackEntry());
+							stack.Push((scriptProperty?.Call(inst!, callParams.ToArray()) ?? 0).ToStackEntry());
 							break;
 						default:
 							stack.Push(0.ToStackEntry());

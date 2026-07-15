@@ -347,7 +347,7 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 			control.Awaken();
 
 		Awake = true;
-		InvokeEvent("onWake");
+		OnWake();
 		if (IsActuallyVisible())
 			NotifyVisible(true);
 	}
@@ -503,6 +503,7 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 
 	private void NotifyVisible(bool visible)
 	{
+		OnVisibilityChanged(visible);
 		InvokeEvent(visible ? "onShow" : "onHide");
 
 		IGuiControl?[] controls;
@@ -705,6 +706,12 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 	}
 
 	protected virtual void OnResize(int oldWidth, int oldHeight, int newWidth, int newHeight)
+	{
+	}
+
+	protected virtual void OnWake() => InvokeEvent("onWake");
+
+	protected virtual void OnVisibilityChanged(bool visible)
 	{
 	}
 

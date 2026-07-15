@@ -749,14 +749,11 @@ public static class Tools
 							   ? "," + (left2Right ? "-" : string.Empty) + fieldLength
 							   : string.Empty) +
 						   "}";
-		var numberFormat = "{0:" +
-						   nativeFormat +
-						   (fieldPrecision != int.MinValue ? fieldPrecision.ToString() : string.Empty) +
-						   "}";
-
 		if (IsNumericType(value))
 		{
-			w = string.Format(CultureInfo.InvariantCulture, numberFormat, value);
+			w = UnboxToLong(value, true).ToString(nativeFormat, CultureInfo.InvariantCulture);
+			if (fieldPrecision != int.MinValue)
+				w = w.PadLeft(fieldPrecision, '0');
 
 			if (left2Right || padding == ' ')
 			{

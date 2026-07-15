@@ -162,6 +162,39 @@ public class ScriptMachineTests
 	private Script CompileLegacyBytecodeScript(string objectPath, string scriptName = "legacyScript") =>
 		new(_scriptManager, scriptName, CreateObjFromStrBytecode(objectPath));
 
+	[Fact]
+	public async Task Given_nested_script_event_When_outer_function_resumes_Then_outer_instruction_position_is_restored()
+	{
+		// Arrange
+		_scriptManager.RegisterGlobalVariable(
+			"invokenested",
+			(Script.Command)((machine, _) =>
+				machine.CurrentScript.Call("onNested").ConfigureAwait(false).GetAwaiter().GetResult())
+		);
+		var script = CompileScript(
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				this.marker = "before";
+				invokenested();
+				this.marker @= "-after";
+				return this.marker;
+			}
+
+			function onNested() {
+				this.nested = true;
+			}
+			"""
+		);
+
+		// Act
+		var result = await script.Call("onCreated");
+
+		// Assert
+		Assert.Equal("before-after", result.GetValue()?.ToString());
+		Assert.True(script.GetVariable("nested").GetValue<bool>());
+	}
+
 	private Script CompileLegacyParamsBytecodeScript(string scriptName = "legacyParamsScript") =>
 		new(_scriptManager, scriptName, CreateParamsOpcodeBytecode());
 
@@ -1444,6 +1477,35 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal(string.Empty, result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_format_opcode_with_assignment_target_When_executing_Then_target_is_preserved()
+	{
+		//Arrange
+		var script = CompileRawBytecodeScript([
+			(byte)Opcode.OP_TYPE_VAR,
+			0xF0,
+			0,
+			(byte)Opcode.OP_TYPE_ARRAY,
+			(byte)Opcode.OP_TYPE_NUMBER,
+			0xF3,
+			1,
+			(byte)Opcode.OP_TYPE_STRING,
+			0xF0,
+			1,
+			(byte)Opcode.OP_FORMAT,
+			(byte)Opcode.OP_ASSIGN,
+			(byte)Opcode.OP_TYPE_VAR,
+			0xF0,
+			0,
+		], ["colorstr", "#%.2x"]);
+
+		//Act
+		var result = await script.Call("onCreated");
+
+		//Assert
+		Assert.Equal("#01", result.GetValue()?.ToString());
 	}
 
 	[Fact]

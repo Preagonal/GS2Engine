@@ -72,6 +72,7 @@ public class ScriptMachine
 	public async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? callStack = null, ScriptVariable? receiverOverride = null, bool inheritTempFrame = false)
 	{
 		var previousReceiver = _receiverOverride;
+		var previousIndexPos = _indexPos;
 		if (receiverOverride != null)
 			_receiverOverride = receiverOverride;
 
@@ -89,6 +90,7 @@ public class ScriptMachine
 		}
 		finally
 		{
+			Tools.DebugLine($"[SCRIPT] leave {_script.Name}.{functionName.ToLowerInvariant()}");
 			_functionFrames.Pop();
 			_localFrames.Pop();
 			if (pushTempFrame)
@@ -96,6 +98,7 @@ public class ScriptMachine
 				_tempAliasFrames.Pop();
 				_tempFrames.Pop();
 			}
+			_indexPos = previousIndexPos;
 			_receiverOverride = previousReceiver;
 		}
 	}
@@ -134,6 +137,11 @@ public class ScriptMachine
 		IStackEntry ReadCallStackRegister(double registerIndex) =>
 			callStackRegisters.TryGetValue(ToScriptInt(registerIndex), out var entry)
 				? GetEntry(entry, returnStackEntryIfNotFound: true)
+				: 0.ToStackEntry();
+
+		IStackEntry ReadRawCallStackRegister(double registerIndex) =>
+			callStackRegisters.TryGetValue(ToScriptInt(registerIndex), out var entry)
+				? entry
 				: 0.ToStackEntry();
 
 		void StoreCallStackRegister(double registerIndex, IStackEntry entry) =>
@@ -663,7 +671,7 @@ public class ScriptMachine
 						StoreCallStackRegister(op.Value, stack.Peek());
 					break;
 				case Opcode.OP_UNKNOWN_46:
-					stack.Push(CopyStackEntry(ReadCallStackRegister(op.Value)));
+					stack.Push(CopyStackEntry(ReadRawCallStackRegister(op.Value)));
 					break;
 				case Opcode.OP_UNKNOWN_47:
 					if (stack.Count > 0)
@@ -837,7 +845,7 @@ public class ScriptMachine
 					}
 					break;
 				case Opcode.OP_UNKNOWN_233:
-					var copiedRegisterEntry = ReadCallStackRegister(op.Value);
+					var copiedRegisterEntry = ReadRawCallStackRegister(op.Value);
 					stack.Push(CopyStackEntry(copiedRegisterEntry));
 					stack.Push(CopyStackEntry(copiedRegisterEntry));
 					break;
@@ -977,9 +985,12 @@ public class ScriptMachine
 					break;
 				case Opcode.OP_FORMAT:
 					var format  = stack.Count > 0 ? stack.Pop() : string.Empty.ToStackEntry();
-					var objects = stack.Select(x => GetEntryValue<object>(x)).ToArray();
-					stack.Clear();
-					var formatted = Tools.Format(GetEntryValue<TString>(format) ?? "", objects);
+					var objects = new List<object?>();
+					while (stack.Count > 0 && stack.Peek().Type != ArrayStart)
+						objects.Add(ResolveReadableScriptProperty(ResolveEntryForRead(stack.Pop(), opWith, returnStackEntryIfNotFound: true)).GetValue());
+					if (stack.Count > 0)
+						stack.Pop();
+					var formatted = Tools.Format(GetEntryValue<TString>(format) ?? "", objects.ToArray());
 					stack.Push(formatted.ToStackEntry());
 					break;
 				case Opcode.OP_INT:

@@ -16,6 +16,22 @@ namespace Preagonal.Scripting.GS2Engine.GS2.Script;
 
 public class Script : ScriptVariable
 {
+	private static readonly string[] Gs1EventNames =
+	[
+		"playerenters", "playertouchsme", "playertouchsother", "playerchats", "playerhurt", "playerdies",
+		"playerlaysitem", "playerendsreading", "compusdied", "emoticon", "mousedown", "mouseup", "mousewheel",
+		"exploded", "wasshot", "waspelt", "keypressed", "actionprojectile2", "", "", "", "playerleaves",
+		"washit", "", "", "shapetrigger", "playanimation", "pkzonechanges",
+	];
+
+	private static readonly Dictionary<string, string> Gs1EventAliases = new(StringComparer.OrdinalIgnoreCase)
+	{
+		["playertouchesme"] = "playertouchsme",
+		["playertouchesother"] = "playertouchsother",
+		["playerhurted"] = "playerhurt",
+		["wasshooted"] = "wasshot",
+	};
+
 	public delegate            IStackEntry                        Command(ScriptMachine machine, IStackEntry[]? args);
 	public new static readonly ScriptObjProperties                PropertiesInstance = [];
 	public override            IScriptProperties                  Properties => PropertiesInstance;
@@ -130,6 +146,7 @@ public class Script : ScriptVariable
 		_bytecode = [];
 		_strings.Clear();
 		Clear();
+		Gs1Flags = 0;
 		HasOnlyFunctions = true;
 		HaltExecution();
 	}
@@ -336,6 +353,7 @@ public class Script : ScriptVariable
 			}
 			else
 			{
+				bytecodeParam.setRead(0);
 				return;
 			}
 		}
@@ -737,6 +755,88 @@ public class Script : ScriptVariable
 		       eventName.AsSpan(dotIndex + 1).StartsWith("on", StringComparison.OrdinalIgnoreCase);
 	}
 
+	private static bool TryGetGs1Event(string eventName, out string canonicalName, out int eventIndex)
+	{
+		var normalizedName = eventName.ToLowerInvariant();
+		if (normalizedName.StartsWith("on", StringComparison.Ordinal))
+			normalizedName = normalizedName[2..];
+
+		canonicalName = Gs1EventAliases.GetValueOrDefault(normalizedName, normalizedName);
+		var eventNameToFind = canonicalName;
+		eventIndex = Array.FindIndex(Gs1EventNames, name => name == eventNameToFind);
+		return eventIndex >= 0;
+	}
+
+	private Script? GetJoinedClass(string className)
+	{
+		if (!ScriptManager.GlobalVariables.TryGetVariable(className, out var entry)) return null;
+
+		object? value = entry?.GetValue();
+		while (value is IStackEntry stackEntry)
+			value = stackEntry.GetValue();
+
+		return value as Script;
+	}
+
+	private bool HasEventFunction(string functionName, HashSet<string>? visitedClasses = null)
+	{
+		lock (_functionsLock)
+			if (Functions.ContainsKey(functionName))
+				return true;
+
+		visitedClasses ??= new(StringComparer.OrdinalIgnoreCase);
+		foreach (var className in JoinedClassNames)
+		{
+			if (!visitedClasses.Add(className)) continue;
+			var classScript = GetJoinedClass(className);
+			if (classScript != null && classScript.HasEventFunction(functionName, visitedClasses)) return true;
+		}
+
+		return false;
+	}
+
+	private bool HasGs1EventFlag(int eventIndex)
+	{
+		var eventFlag = 1 << (eventIndex & 0x1f);
+		if ((Gs1Flags & eventFlag) != 0) return true;
+
+		foreach (var className in JoinedClassNames)
+		{
+			var classScript = GetJoinedClass(className);
+			if (classScript != null && (classScript.Gs1Flags & eventFlag) != 0) return true;
+		}
+
+		return false;
+	}
+
+	private bool EventFunctionStartsAtScriptRoot(string functionName)
+	{
+		lock (_functionsLock)
+			return Functions.TryGetValue(functionName, out var function) && function.BytecodePosition == 0;
+	}
+
+	private async Task<IStackEntry> CallScriptEvent(
+		string eventName,
+		int? gs1EventIndex,
+		IReadOnlyCollection<IStackEntry>? entries
+	)
+	{
+		var functionName = $"on{eventName}";
+		var hasEventFunction = HasEventFunction(functionName);
+		var needsWholeScript = gs1EventIndex == null || HasGs1EventFlag(gs1EventIndex.Value);
+		if (!needsWholeScript && !hasEventFunction) return 0.ToStackEntry();
+
+		IStackEntry result = 0.ToStackEntry();
+		var executedWholeScript = !HasOnlyFunctions;
+		if (executedWholeScript)
+			result = await Machine.ExecuteScript(eventName, BuildCallStack(entries)).ConfigureAwait(false);
+
+		if (hasEventFunction && (!executedWholeScript || !EventFunctionStartsAtScriptRoot(functionName)))
+			result = await Execute(functionName, BuildCallStack(entries)).ConfigureAwait(false);
+
+		return result;
+	}
+
 	/// <summary>
 	///     Function -> Call Event for Object
 	/// </summary>
@@ -745,6 +845,13 @@ public class Script : ScriptVariable
 		try
 		{
 			var entries = args?.Select(ToCallStackEntry).Where(entry => entry != null).Cast<IStackEntry>().ToArray();
+			if (TryGetGs1Event(eventName, out var gs1EventName, out var gs1EventIndex))
+				return await CallScriptEvent(gs1EventName, gs1EventIndex, entries).ConfigureAwait(false);
+
+			if (eventName.Equals("created", StringComparison.OrdinalIgnoreCase) ||
+			    eventName.Equals("oncreated", StringComparison.OrdinalIgnoreCase))
+				return await CallScriptEvent("created", null, entries).ConfigureAwait(false);
+
 			var inheritTempFrame = IsObjectEventName(eventName);
 			bool hasFunction;
 			lock (_functionsLock)
@@ -775,7 +882,7 @@ public class Script : ScriptVariable
 		}
 		catch (Exception e)
 		{
-			Console.WriteLine($"Error calling {Name}.{eventName}: {e}");
+			Tools.DebugLine($"Error calling {Name}.{eventName}: {e}");
 		}
 
 		return 0.ToStackEntry();

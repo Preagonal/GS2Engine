@@ -31,9 +31,9 @@ public class ScriptMachine
 
 	private readonly Dictionary<Opcode, OpcodeHandler> _opcodeHandlers = new();
 
-	private bool _firstRun = true;
-	private int  _indexPos;
-	private bool _useTemp;
+	private int    _indexPos;
+	private bool   _useTemp;
+	private string _activeEvent = string.Empty;
 
 	public ScriptMachine(Script script)
 	{
@@ -69,10 +69,24 @@ public class ScriptMachine
 
 	}
 
-	public async Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? callStack = null, ScriptVariable? receiverOverride = null, bool inheritTempFrame = false)
+	public Task<IStackEntry> Execute(string functionName, Stack<IStackEntry>? callStack = null, ScriptVariable? receiverOverride = null, bool inheritTempFrame = false) =>
+		Execute(functionName, callStack, receiverOverride, inheritTempFrame, null);
+
+	internal Task<IStackEntry> ExecuteScript(string eventName, Stack<IStackEntry>? callStack = null, ScriptVariable? receiverOverride = null) =>
+		Execute(string.Empty, callStack, receiverOverride, false, eventName);
+
+	private async Task<IStackEntry> Execute(
+		string functionName,
+		Stack<IStackEntry>? callStack,
+		ScriptVariable? receiverOverride,
+		bool inheritTempFrame,
+		string? activeEvent
+	)
 	{
 		var previousReceiver = _receiverOverride;
 		var previousIndexPos = _indexPos;
+		var previousActiveEvent = _activeEvent;
+		_activeEvent = activeEvent?.ToLowerInvariant() ?? string.Empty;
 		if (receiverOverride != null)
 			_receiverOverride = receiverOverride;
 
@@ -100,14 +114,17 @@ public class ScriptMachine
 			}
 			_indexPos = previousIndexPos;
 			_receiverOverride = previousReceiver;
+			_activeEvent = previousActiveEvent;
 		}
 	}
 
 	private async Task<IStackEntry> ExecuteCore(string functionName, Stack<IStackEntry>? callStack)
 	{
 		var normalizedFunctionName = functionName.ToLowerInvariant();
-		Tools.DebugLine($"[SCRIPT] enter {_script.Name}.{normalizedFunctionName}");
-		if (!_script.Functions.TryGetValue(normalizedFunctionName, out var value))
+		var executeWholeScript = normalizedFunctionName.Length == 0;
+		Tools.DebugLine($"[SCRIPT] enter {_script.Name}.{(executeWholeScript ? "<script>" : normalizedFunctionName)}");
+		FunctionParams value = default;
+		if (!executeWholeScript && !_script.Functions.TryGetValue(normalizedFunctionName, out value))
 		{
 			if (TryGetJoinedClassFunction(ThisObject, normalizedFunctionName, out var joinedCommand))
 				return joinedCommand(this, callStack?.ToArray() ?? []);
@@ -119,12 +136,10 @@ public class ScriptMachine
 		Stack<IStackEntry> stack = new();
 		SetCallParameters(callStack);
 
-			var desiredStart = value.BytecodePosition;
-			var functionEnd  = GetFunctionEnd(desiredStart);
-			var index        = _firstRun && !_script.HasOnlyFunctions ? 0 : value.BytecodePosition;
+			var desiredStart = executeWholeScript ? 0 : value.BytecodePosition;
+			var functionEnd  = executeWholeScript ? _script.Bytecode.Length : GetFunctionEnd(desiredStart);
+			var index        = desiredStart;
 			Tools.DebugLine($"[SCRIPT] range {normalizedFunctionName} start={desiredStart} end={functionEnd}");
-			if (_firstRun)
-				_firstRun = false;
 
 		const int maxLoopCount = 100000;
 
@@ -180,17 +195,7 @@ public class ScriptMachine
 					break;
 				case Opcode.OP_SET_INDEX:
 					Tools.DebugLine($"[SCRIPT] set_index target={op.Value} current={curIndex} functionEnd={functionEnd}");
-					// ReSharper disable once CompareOfFloatsByEqualityOperator
-					if (op.Value == _script.Bytecode.Length)
-					{
-						index        = desiredStart;
-						desiredStart = (int)op.Value;
-					}
-					else
-					{
-						index = (int)op.Value;
-					}
-
+					index = (int)op.Value;
 					_indexPos = index;
 					break;
 				case Opcode.OP_SET_INDEX_TRUE:
@@ -2115,6 +2120,10 @@ public class ScriptMachine
 				retVal = property.ToStackEntry();
 				foundVariable = true;
 				break;
+			case Variable when _activeEvent.Equals(stackEntry.GetValue()?.ToString(), StringComparison.OrdinalIgnoreCase):
+				retVal = 1.ToStackEntry();
+				foundVariable = true;
+				break;
 			case Variable
 					when _localVariables.ContainsVariable(stackEntry.GetValue()?.ToString()?.ToLowerInvariant() ?? string.Empty):
 					_useTemp = false;
@@ -2678,7 +2687,7 @@ public class ScriptMachine
 
 	public void Reset()
 	{
-		_firstRun = true;
+		_activeEvent = string.Empty;
 		_rootTempVariables.Clear();
 		_tempFrames.Clear();
 		_localFrames.Clear();

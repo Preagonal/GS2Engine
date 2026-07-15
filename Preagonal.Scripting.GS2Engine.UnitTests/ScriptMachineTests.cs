@@ -141,13 +141,19 @@ public class ScriptMachineTests
 		return 0;
 	}
 
-	private Script CompileScript(string scriptText, string scriptName = "testScript", ScriptVariable? refObject = null)
+	private Script CompileScript(
+		string scriptText,
+		string scriptName = "testScript",
+		ScriptVariable? refObject = null,
+		GS2Compiler.ScriptGrammar grammar = GS2Compiler.ScriptGrammar.GS2
+	)
 	{
 		var response = GS2Compiler.Interface.CompileCode(
 			scriptText,
 			"weapon",
 			scriptName,
-			withHeader: false
+			withHeader: false,
+			grammar: grammar
 		);
 
 		if (response.Success)
@@ -5572,6 +5578,154 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.True(script.GetVariable("called").GetValue<bool>());
+	}
+
+	[Fact]
+	public async Task Given_gs1_event_flag_When_matching_event_is_called_Then_whole_script_runs_with_active_event()
+	{
+		// Arrange
+		var script = CompileScript(
+			"""
+			if (playerenters) {
+				this.called = true;
+			}
+			""",
+			grammar: GS2Compiler.ScriptGrammar.GS1
+		);
+
+		// Act
+		await script.Call("onPlayerEnters");
+
+		// Assert
+		Assert.True(script.GetVariable("called").GetValue<bool>());
+	}
+
+	[Fact]
+	public async Task Given_gs1_event_flag_When_different_event_is_called_Then_whole_script_does_not_run()
+	{
+		// Arrange
+		var script = CompileScript(
+			"""
+			this.ran = true;
+			if (playerchats) {
+				this.chatEvent = true;
+			}
+			""",
+			grammar: GS2Compiler.ScriptGrammar.GS1
+		);
+
+		// Act
+		await script.Call("onPlayerEnters");
+
+		// Assert
+		Assert.False(script.GetVariable("ran").GetValue<bool>());
+	}
+
+	[Fact]
+	public async Task Given_gs1_event_flag_and_event_function_When_matching_event_is_called_Then_both_run()
+	{
+		// Arrange
+		var script = CompileScript(
+			"""
+			if (playerenters) {
+				this.wholeScriptCalled = true;
+			}
+
+			function onPlayerEnters() {
+				this.functionCalled = true;
+			}
+			""",
+			grammar: GS2Compiler.ScriptGrammar.GS1
+		);
+
+		// Act
+		await script.Call("onPlayerEnters");
+
+		// Assert
+		Assert.True(script.GetVariable("wholescriptcalled").GetValue<bool>());
+		Assert.True(script.GetVariable("functioncalled").GetValue<bool>());
+	}
+
+	[Fact]
+	public async Task Given_gs1_event_flag_When_matching_event_is_called_twice_Then_whole_script_runs_twice()
+	{
+		// Arrange
+		var script = CompileScript(
+			"""
+			if (playerenters) {
+				this.calls++;
+			}
+			""",
+			grammar: GS2Compiler.ScriptGrammar.GS1
+		);
+
+		// Act
+		await script.Call("onPlayerEnters");
+		await script.Call("onPlayerEnters");
+
+		// Assert
+		Assert.Equal(2.0d, script.GetVariable("calls").GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_updated_script_without_previous_gs1_event_flag_When_previous_event_is_called_Then_whole_script_does_not_run()
+	{
+		// Arrange
+		var script = CompileScript(
+			"""
+			if (playerenters) {
+				this.initialScript = true;
+			}
+			""",
+			grammar: GS2Compiler.ScriptGrammar.GS1
+		);
+		var update = GS2Compiler.Interface.CompileCode(
+			"""
+			this.updatedScriptRan = true;
+			if (playerchats) {
+				this.chatEvent = true;
+			}
+			""",
+			"weapon",
+			"testScript",
+			withHeader: false,
+			grammar: GS2Compiler.ScriptGrammar.GS1
+		);
+		Assert.True(update.Success, update.ErrMsg);
+		script.UpdateFromByteCode("testScript", update.ByteCode);
+
+		// Act
+		await script.Call("onPlayerEnters");
+
+		// Assert
+		Assert.False(script.GetVariable("updatedscriptran").GetValue<bool>());
+	}
+
+	[Fact]
+	public async Task Given_joined_class_with_gs1_event_flag_When_matching_event_is_called_Then_owner_whole_script_runs()
+	{
+		// Arrange
+		CompileScript(
+			"""
+			if (playerenters) {
+				this.classEvent = true;
+			}
+			""",
+			"joinedclass",
+			grammar: GS2Compiler.ScriptGrammar.GS1
+		);
+		var script = CompileScript(
+			"this.ownerScriptCalled = true;",
+			"ownerScript",
+			grammar: GS2Compiler.ScriptGrammar.GS1
+		);
+		script.Join("joinedclass");
+
+		// Act
+		await script.Call("onPlayerEnters");
+
+		// Assert
+		Assert.True(script.GetVariable("ownerscriptcalled").GetValue<bool>());
 	}
 
 	[Fact]

@@ -1,4 +1,5 @@
 using System;
+using Preagonal.Scripting.GS2Engine.GS2.Script;
 using Preagonal.Scripting.GS2Engine.Models.Properties;
 
 namespace Preagonal.Scripting.GS2Engine.Models;
@@ -36,7 +37,7 @@ public class ScriptProperty<TInstance> : IScriptProperty where TInstance : class
 	public  Type                                     ReturnType         { get; }
 	private Func<TInstance, object?>?                ReadTyped          { get; }
 	private Action<TInstance, object?>?              WriteTyped         { get; }
-	private Func<TInstance, IStackEntry[], object?>? CallTyped          { get; }
+	private Func<TInstance, ScriptMachine?, IStackEntry[], object?>? CallTyped { get; }
 	private CallbackDelegate?                        Callback           { get; set; }
 	public  IScriptProperties?                       Properties         { get; }
 
@@ -54,7 +55,12 @@ public class ScriptProperty<TInstance> : IScriptProperty where TInstance : class
 
 	object? IScriptProperty.Call(object instance, params IStackEntry[] value) =>
 		CallTyped != null
-			? CallTyped.Invoke((TInstance)instance, value)
+			? CallTyped.Invoke((TInstance)instance, null, value)
+			: ReadTyped?.Invoke((TInstance)instance);
+
+	object? IScriptProperty.Call(ScriptMachine machine, object instance, params IStackEntry[] value) =>
+		CallTyped != null
+			? CallTyped.Invoke((TInstance)instance, machine, value)
 			: ReadTyped?.Invoke((TInstance)instance);
 
 	public void SetCallback(CallbackDelegate callback) => Callback = callback;

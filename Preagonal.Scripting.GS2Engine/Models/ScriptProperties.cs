@@ -81,6 +81,20 @@ public class ScriptProperties<T> : HashSet<IScriptProperty>, IScriptProperties w
 		}
 	}
 
+	public bool TryGetProperty(string propertyName, out IScriptProperty property)
+	{
+		foreach (var candidate in this)
+		{
+			if (!candidate.PropertyName.Equals(propertyName, StringComparison.OrdinalIgnoreCase)) continue;
+
+			property = candidate;
+			return true;
+		}
+
+		property = null!;
+		return false;
+	}
+
 	public new void Add(IScriptProperty scriptProperty)
 	{
 		RemoveWhere(existing =>

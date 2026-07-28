@@ -1,4 +1,5 @@
 using System;
+using Preagonal.Scripting.GS2Engine.GS2.Script;
 
 namespace Preagonal.Scripting.GS2Engine.Models;
 
@@ -15,5 +16,6 @@ public interface IScriptProperty
 	object?                   Read(object instance);
 	void                      Write(object instance, object? value);
 	object?                   Call(object instance, params IStackEntry[] arguments);
+	object?                   Call(ScriptMachine machine, object instance, params IStackEntry[] arguments);
 	void                      SetCallback(CallbackDelegate callback);
 }

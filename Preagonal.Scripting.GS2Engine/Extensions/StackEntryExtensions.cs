@@ -60,6 +60,9 @@ public static class StackEntryExtensions
 					if (stackType == typeof(TString))
 						return StackEntryType.String;
 
+					if (stackType == typeof(Version))
+						return StackEntryType.Array;
+
 					if (stackType == typeof(Script.Command))
 						return StackEntryType.Function;
 

@@ -47,4 +47,60 @@ public class GuiControlTests
 
 		Assert.Equal("GuiControl", objectType.Call(control));
 	}
+
+	[Fact]
+	public void Given_focused_control_When_control_is_hidden_Then_first_responder_is_cleared()
+	{
+		var root = new GuiControl("root", null);
+		var input = new GuiControl("input", null);
+		root.AddControl(input);
+		input.MakeFirstResponder(true);
+
+		input.Hide();
+
+		Assert.Null(root.FirstResponder);
+	}
+
+	[Fact]
+	public void Given_focused_descendant_When_parent_is_hidden_Then_first_responder_is_cleared()
+	{
+		var root = new GuiControl("root", null);
+		var panel = new GuiControl("panel", null);
+		var input = new GuiControl("input", null);
+		root.AddControl(panel);
+		panel.AddControl(input);
+		input.MakeFirstResponder(true);
+
+		panel.Hide();
+
+		Assert.Null(root.FirstResponder);
+	}
+
+	[Fact]
+	public void Given_focused_control_When_control_is_destroyed_Then_first_responder_is_cleared()
+	{
+		var root = new GuiControl("root", null);
+		var input = new GuiControl("input", null);
+		root.AddControl(input);
+		input.MakeFirstResponder(true);
+
+		input.Destroy();
+
+		Assert.Null(root.FirstResponder);
+	}
+
+	[Fact]
+	public void Given_focused_descendant_When_parent_is_destroyed_Then_first_responder_is_cleared()
+	{
+		var root = new GuiControl("root", null);
+		var panel = new GuiControl("panel", null);
+		var input = new GuiControl("input", null);
+		root.AddControl(panel);
+		panel.AddControl(input);
+		input.MakeFirstResponder(true);
+
+		panel.Destroy();
+
+		Assert.Null(root.FirstResponder);
+	}
 }

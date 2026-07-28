@@ -223,7 +223,10 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 			StopInOutAnimations();
 			var isActuallyVisible = IsActuallyVisible();
 			if (wasActuallyVisible != isActuallyVisible)
+			{
+				ClearFirstResponders();
 				NotifyVisible(isActuallyVisible);
+			}
 		}
 	}
 	public int          Width
@@ -279,6 +282,8 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 
 	public void Destroy()
 	{
+		ClearFirstResponders();
+
 		IGuiControl?[] controls;
 		lock (Controls)
 		{
@@ -640,6 +645,18 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 			parent.ClearFirstResponder(control);
 	}
 
+	private void ClearFirstResponders()
+	{
+		ClearFirstResponder(this);
+
+		GuiControl[] children;
+		lock (Controls)
+			children = Controls.OfType<GuiControl>().ToArray();
+
+		foreach (var child in children)
+			child.ClearFirstResponders();
+	}
+
 	// ReSharper disable once UnusedMember.Global
 	protected void CallAction() => InvokeEvent("onAction");
 
@@ -649,6 +666,8 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 	}
 
 	public void InstallEventCatchers(Script sourceScript) => Script?.InstallObjectEventCatchers(Id, sourceScript);
+
+	internal void RemoveEventCatchersFrom(Script sourceScript) => Script?.RemoveEventCatchersFrom(sourceScript);
 
 
 	public virtual void Draw()

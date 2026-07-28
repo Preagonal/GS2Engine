@@ -14,16 +14,21 @@ public class TString
 	public  byte[] buffer = [];
 	private int    readc;
 	private int    writePos;
+	private string? stringValue;
 
 	private TString(string str)
 	{
-		AddBuffer(str, str.Length);
+		buffer = Encoding.ASCII.GetBytes(str);
+		Length = buffer.Length;
+		writePos = Length;
+		stringValue = IsAscii(str) ? str : Encoding.ASCII.GetString(buffer);
 	}
 
 	private TString(byte[] str)
 	{
 		buffer = str;
 		Length = buffer.Length;
+		writePos = Length;
 	}
 
 	public TString()
@@ -34,6 +39,7 @@ public class TString
 
 	private void AddBuffer(string? input, int length = 0)
 	{
+		stringValue = null;
 		Array.Resize(ref buffer, Length + length);
 		ArgumentNullException.ThrowIfNull(input);
 		foreach (var c in Encoding.ASCII.GetBytes(input))
@@ -46,6 +52,7 @@ public class TString
 
 	private void AddBuffer(IReadOnlyList<byte> input, int start, int length = 0)
 	{
+		stringValue = null;
 		Array.Resize(ref buffer, Length + length);
 		for (var i = start; i < start + length; i++)
 		{
@@ -57,6 +64,7 @@ public class TString
 
 	private void AddBuffer(byte input)
 	{
+		stringValue = null;
 		Array.Resize(ref buffer, Length + 1);
 
 		buffer[writePos] = input;
@@ -64,7 +72,7 @@ public class TString
 		Length++;
 	}
 
-	public static implicit operator string(TString d)  => Encoding.ASCII.GetString(d.buffer);
+	public static implicit operator string(TString d)  => d.ToString();
 	public static implicit operator TString(string b) => new(b);
 	public static implicit operator TString(byte[] b)  => new(b);
 	public static bool operator ==(TString? obj1, TString? obj2)
@@ -202,9 +210,11 @@ public class TString
 	{
 		buffer = buffer.Skip(i).ToArray();
 		Length = buffer.Length;
+		writePos = Length;
+		stringValue = null;
 	}
 
-	public override string ToString() => Encoding.ASCII.GetString(buffer);
+	public override string ToString() => stringValue ??= Encoding.ASCII.GetString(buffer, 0, Length);
 
 	private         bool Equals(TString? compare) => ToString() == compare?.ToString();
 	public override bool Equals(object? obj)
@@ -219,4 +229,13 @@ public class TString
 		ToString().StartsWith(toString.ToString(), culture);
 
 	public TString ToLower() => ToString().ToLowerInvariant();
+
+	private static bool IsAscii(string value)
+	{
+		foreach (var character in value)
+			if (character > 0x7f)
+				return false;
+
+		return true;
+	}
 }

@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -211,6 +212,12 @@ public static class Tools
 		}
 	}
 
+	public static void Debug(ref DebugInterpolatedStringHandler text)
+	{
+		if (text.Enabled)
+			Debug(text.GetFormattedText());
+	}
+
 	public static void DebugLine(string? text)
 	{
 		if (!DEBUG_ON) return;
@@ -226,6 +233,40 @@ public static class Tools
 		{
 			Console.WriteLine(text);
 		}
+	}
+
+	public static void DebugLine(ref DebugInterpolatedStringHandler text)
+	{
+		if (text.Enabled)
+			DebugLine(text.GetFormattedText());
+	}
+
+	[InterpolatedStringHandler]
+	public ref struct DebugInterpolatedStringHandler
+	{
+		private DefaultInterpolatedStringHandler _handler;
+
+		public DebugInterpolatedStringHandler(int literalLength, int formattedCount, out bool shouldAppend)
+		{
+			Enabled      = DEBUG_ON;
+			shouldAppend = Enabled;
+			_handler     = Enabled ? new(literalLength, formattedCount) : default;
+		}
+
+		public bool Enabled { get; }
+
+		public void AppendLiteral(string value) => _handler.AppendLiteral(value);
+
+		public void AppendFormatted<T>(T value) => _handler.AppendFormatted(value);
+
+		public void AppendFormatted<T>(T value, string? format) => _handler.AppendFormatted(value, format);
+
+		public void AppendFormatted<T>(T value, int alignment) => _handler.AppendFormatted(value, alignment);
+
+		public void AppendFormatted<T>(T value, int alignment, string? format) =>
+			_handler.AppendFormatted(value, alignment, format);
+
+		public string GetFormattedText() => _handler.ToStringAndClear();
 	}
 
 	public static string Format(string? format, params object?[] parameters)

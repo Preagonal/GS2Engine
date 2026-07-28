@@ -10,4 +10,11 @@ public class FunctionDefinitions<TInstance> : List<IFunctionDefinition<TInstance
 		PropertyFunctionDelegate<TInstance, TRet>? callTyped = null
 	) =>
 		Add(new FunctionDefinition<TInstance, TRet>(propertyName, description, callTyped));
+
+	public void Add<TRet>(
+		string propertyName,
+		string description,
+		ContextualPropertyFunctionDelegate<TInstance, TRet> callTyped
+	) =>
+		Add(new ContextualFunctionDefinition<TInstance, TRet>(propertyName, description, callTyped));
 }

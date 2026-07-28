@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Preagonal.Scripting.GS2Engine.Extensions;
+using Preagonal.Scripting.GS2Engine.GS2.Script;
 
 namespace Preagonal.Scripting.GS2Engine.Models;
 
@@ -11,6 +12,7 @@ public class ScriptVariable(string name = "") : VariableCollection, IScriptVaria
 
 	public string                Name             { get; protected set; } = name;
 	public IReadOnlyList<string> JoinedClassNames => _joinedClasses;
+	public Script?               OwnerScript      { get; internal set; }
 
 	public string JoinedClasses
 	{
@@ -36,7 +38,8 @@ public class ScriptVariable(string name = "") : VariableCollection, IScriptVaria
 
 	protected void SetCallback(string variable, CallbackDelegate setCallback)
 	{
-		Properties.FirstOrDefault(x => x.PropertyName.Equals(variable, StringComparison.CurrentCultureIgnoreCase))?.SetCallback(setCallback);
+		if (Properties.TryGetProperty(variable, out var property))
+			property.SetCallback(setCallback);
 	}
 
 	/*

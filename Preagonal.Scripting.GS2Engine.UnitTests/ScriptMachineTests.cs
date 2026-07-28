@@ -169,6 +169,85 @@ public class ScriptMachineTests
 		new(_scriptManager, scriptName, CreateObjFromStrBytecode(objectPath));
 
 	[Fact]
+	public async Task Given_top_level_statements_When_executing_script_Then_bytecode_runs_from_start_to_end()
+	{
+		var captured = string.Empty;
+		_scriptManager.RegisterGlobalVariable(
+			"captureconsole",
+			(Script.Command)((_, args) =>
+			{
+				captured = args?.FirstOrDefault()?.GetValue()?.ToString() ?? string.Empty;
+				return 0.ToStackEntry();
+			})
+		);
+		var script = CompileScript("captureconsole(\"executed\");");
+
+		await script.ExecuteScript();
+
+		Assert.Equal("executed", captured);
+	}
+
+	[Fact]
+	public async Task Given_system_version_When_echoed_Then_full_version_is_used()
+	{
+		_scriptManager.RegisterGlobalVariable("testversion", new Version(1, 2, 3, 4));
+		var script = CompileScript("function onCreated() { echo(testversion); }");
+
+		await script.Call("onCreated");
+
+		Assert.Equal("1.2.3.4", _receivedStrings[0]);
+	}
+
+	[Theory]
+	[InlineData("major", 1d)]
+	[InlineData("minor", 2d)]
+	[InlineData("build", 3d)]
+	[InlineData("revision", 4d)]
+	public async Task Given_system_version_When_member_is_read_Then_component_is_returned(string member, double expected)
+	{
+		_scriptManager.RegisterGlobalVariable("testversion", new Version(1, 2, 3, 4));
+		var script = CompileScript($"function onCreated() {{ return testversion.{member}; }}");
+
+		var result = await script.Call("onCreated");
+
+		Assert.Equal(expected, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_bare_receiver_property_When_reading_Then_property_getter_is_used()
+	{
+		var response = GS2Compiler.Interface.CompileCode(
+			"function onCreated() { return position; }",
+			"levelnpc",
+			"receiver",
+			withHeader: false
+		);
+		Assert.True(response.Success, response.ErrMsg);
+		var script = new ReceiverPropertyScript(_scriptManager, response.ByteCode) { Position = 42 };
+
+		var result = await script.Call("onCreated");
+
+		Assert.Equal(42, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_bare_receiver_property_When_assigning_Then_property_setter_is_used()
+	{
+		var response = GS2Compiler.Interface.CompileCode(
+			"function onCreated() { position = 42; }",
+			"levelnpc",
+			"receiver",
+			withHeader: false
+		);
+		Assert.True(response.Success, response.ErrMsg);
+		var script = new ReceiverPropertyScript(_scriptManager, response.ByteCode);
+
+		await script.Call("onCreated");
+
+		Assert.Equal(42, script.Position);
+	}
+
+	[Fact]
 	public async Task Given_nested_script_event_When_outer_function_resumes_Then_outer_instruction_position_is_restored()
 	{
 		// Arrange
@@ -876,6 +955,31 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal("testaccount", result.GetValue()!.ToString());
+	}
+
+	[Fact]
+	public async Task Given_client_member_When_assigned_Then_registered_player_is_updated()
+	{
+		var player = new ScriptVariable();
+		RegisterGlobalObject("player", player);
+		var script = CompileScript("function onCreated() { client.hasmp = true; }");
+
+		await script.Call("onCreated");
+
+		Assert.True(player.GetVariable("hasmp").GetValue<bool>());
+	}
+
+	[Fact]
+	public async Task Given_client_member_When_read_Then_registered_player_value_is_returned()
+	{
+		var player = new ScriptVariable();
+		player.AddOrUpdate("hasmp", true.ToStackEntry());
+		RegisterGlobalObject("player", player);
+		var script = CompileScript("function onCreated() { return client.hasmp; }");
+
+		var result = await script.Call("onCreated");
+
+		Assert.True(result.GetValue<bool>());
 	}
 
 	[Fact]
@@ -4901,6 +5005,46 @@ public class ScriptMachineTests
 	}
 
 	[Fact]
+	public async Task Given_array_cell_When_incrementing_Then_cell_is_incremented()
+	{
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				this.values = {0, 0};
+				this.values[1]++;
+
+				return this.values[1];
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		var result = await script.Call("onCreated");
+
+		Assert.Equal(1.0d, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_array_cell_When_decrementing_Then_cell_is_decremented()
+	{
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function onCreated() {
+				this.values = {1, 0};
+				this.values[0]--;
+
+				return this.values[0];
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		var result = await script.Call("onCreated");
+
+		Assert.Equal(0.0d, result.GetValue<double>());
+	}
+
+	[Fact]
 	public async Task Given_with_member_When_incrementing_Then_member_is_incremented()
 	{
 		//Arrange
@@ -4986,6 +5130,82 @@ public class ScriptMachineTests
 
 		//Assert
 		Assert.Equal("3|3", result.GetValue()?.ToString());
+	}
+
+	[Fact]
+	public async Task Given_temp_alias_in_previous_call_When_calling_another_function_Then_alias_is_not_reused()
+	{
+		const string scriptText =
+			"""
+			//#CLIENTSIDE
+			function first() {
+				temp.i = 3;
+				return i;
+			}
+
+			function second() {
+				return i;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		var first = await script.Call("first");
+		var second = await script.Call("second");
+
+		Assert.Equal(3, first.GetValue<double>());
+		Assert.Equal(0, second.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_no_call_arguments_When_reading_params_Then_empty_array_is_returned()
+	{
+		var script = CompileScript("function onCreated() { return params.size(); }");
+
+		var result = await script.Call("onCreated");
+
+		Assert.Equal(0, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_temp_value_in_previous_call_When_reading_temp_in_another_function_Then_value_is_not_reused()
+	{
+		const string scriptText =
+			"""
+			function first() {
+				temp.value = 3;
+			}
+
+			function second() {
+				return temp.value;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		await script.Call("first");
+		var result = await script.Call("second");
+
+		Assert.Equal(0, result.GetValue<double>());
+	}
+
+	[Fact]
+	public async Task Given_local_value_in_previous_call_When_reading_name_in_another_function_Then_value_is_not_reused()
+	{
+		const string scriptText =
+			"""
+			function first() {
+				value = 3;
+			}
+
+			function second() {
+				return value;
+			}
+			""";
+		var script = CompileScript(scriptText);
+
+		await script.Call("first");
+		var result = await script.Call("second");
+
+		Assert.Equal(0, result.GetValue<double>());
 	}
 
 	[Fact]
@@ -5597,6 +5817,38 @@ public class ScriptMachineTests
 		await script.Call("onPlayerEnters");
 
 		// Assert
+		Assert.True(script.GetVariable("called").GetValue<bool>());
+	}
+
+	[Fact]
+	public async Task Given_player_touches_me_function_When_legacy_event_name_is_called_Then_function_runs()
+	{
+		var script = CompileScript(
+			"""
+			function onPlayerTouchesMe() {
+				this.called = true;
+			}
+			"""
+		);
+
+		await script.Call("onPlayerTouchsMe");
+
+		Assert.True(script.GetVariable("called").GetValue<bool>());
+	}
+
+	[Fact]
+	public async Task Given_legacy_player_touchs_me_function_When_corrected_event_name_is_called_Then_function_runs()
+	{
+		var script = CompileScript(
+			"""
+			function onPlayerTouchsMe() {
+				this.called = true;
+			}
+			"""
+		);
+
+		await script.Call("onPlayerTouchesMe");
+
 		Assert.True(script.GetVariable("called").GetValue<bool>());
 	}
 
@@ -6639,6 +6891,34 @@ public class ScriptMachineTests
 							return 0;
 						}
 					}
+				}
+			);
+			Compile();
+		}
+	}
+
+	private sealed class ReceiverPropertyScript : Script
+	{
+		public new static readonly ReceiverPropertyScriptProperties PropertiesInstance = [];
+		public override            IScriptProperties                       Properties => PropertiesInstance;
+
+		public ReceiverPropertyScript(IScriptManager scriptManager, byte[] bytecode)
+			: base(scriptManager, "receiver", bytecode, type: ScriptType.LevelNpc)
+		{
+		}
+
+		public double Position { get; set; }
+	}
+
+	private sealed class ReceiverPropertyScriptProperties : ScriptProperties<ReceiverPropertyScript>
+	{
+		public ReceiverPropertyScriptProperties() : base(typeof(Script))
+		{
+			AddProperties(
+				this,
+				new PropertyDefinitions<ReceiverPropertyScript>
+				{
+					{ "position", "", script => script.Position, (script, value) => script.Position = value },
 				}
 			);
 			Compile();

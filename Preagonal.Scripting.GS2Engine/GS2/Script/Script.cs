@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -31,6 +32,7 @@ public class Script : ScriptVariable
 		["playerhurted"] = "playerhurt",
 		["wasshooted"] = "wasshot",
 	};
+	private static readonly ConcurrentBag<HashSet<string>> EventLookupVisitedPool = new();
 
 	public delegate            IStackEntry                        Command(ScriptMachine machine, IStackEntry[]? args);
 	public new static readonly ScriptObjProperties                PropertiesInstance = [];
@@ -38,16 +40,31 @@ public class Script : ScriptVariable
 	private readonly           List<TString>                      _strings  = [];
 	private readonly           Dictionary<string, Dictionary<Script, string>> _eventCatchers = new(StringComparer.OrdinalIgnoreCase);
 	private readonly           object                             _functionsLock = new();
+	private readonly           object                             _timerSync = new();
+	private                    DateTime?                          _timer;
 	public readonly            Dictionary<string, FunctionParams> Functions = new();
 	private                    ScriptCom[]                        _bytecode = [];
 	public readonly            ScriptVariable?                    RefObject = null;
 	public                     bool                               ExecutionEnabled { get; private set; } = true;
 	public                     bool                               HasOnlyFunctions { get; private set; } = true;
 	public                     TString                            File             { get; set; }
+	public                     string                             SourceServer     { get; set; } = "Offline";
 	public                     ScriptType                         Type             { get; }
 	private                    int                                Gs1Flags         { get; set; }
 	public                     ScriptMachine                      Machine          { get; }
-	public                     DateTime?                          Timer            { get; set; }
+	public                     DateTime?                          Timer
+	{
+		get
+		{
+			lock (_timerSync)
+				return _timer;
+		}
+		set
+		{
+			lock (_timerSync)
+				_timer = value;
+		}
+	}
 	public                     ScriptCom[]                        Bytecode         => _bytecode;
 
 
@@ -688,6 +705,20 @@ public class Script : ScriptVariable
 		}
 	}
 
+	internal void RemoveEventCatchersFrom(Script sourceScript)
+	{
+		lock (_eventCatchers)
+		{
+			foreach (var eventName in _eventCatchers.Keys.ToArray())
+			{
+				var catchers = _eventCatchers[eventName];
+				catchers.Remove(sourceScript);
+				if (catchers.Count == 0)
+					_eventCatchers.Remove(eventName);
+			}
+		}
+	}
+
 	private IEnumerable<string> GetObjectEventFunctionNames(string objectPrefix)
 	{
 		string[] functionNames;
@@ -719,14 +750,24 @@ public class Script : ScriptVariable
 		return false;
 	}
 
-	private static Stack<IStackEntry> BuildCallStack(IEnumerable<IStackEntry>? args)
+	private static Stack<IStackEntry>? BuildCallStack(IEnumerable<IStackEntry>? args)
 	{
-		var callStack = new Stack<IStackEntry>();
-		if (args == null) return callStack;
+		if (args == null) return null;
+		if (args is IReadOnlyList<IStackEntry> list)
+		{
+			if (list.Count == 0) return null;
 
-		foreach (var variable in args.Reverse())
-			callStack.Push(variable);
+			var listCallStack = new Stack<IStackEntry>(list.Count);
+			for (var index = list.Count - 1; index >= 0; index--)
+				listCallStack.Push(list[index]);
+			return listCallStack;
+		}
 
+		var values = args.ToArray();
+		if (values.Length == 0) return null;
+		var callStack = new Stack<IStackEntry>(values.Length);
+		for (var index = values.Length - 1; index >= 0; index--)
+			callStack.Push(values[index]);
 		return callStack;
 	}
 
@@ -784,15 +825,47 @@ public class Script : ScriptVariable
 			if (Functions.ContainsKey(functionName))
 				return true;
 
-		visitedClasses ??= new(StringComparer.OrdinalIgnoreCase);
-		foreach (var className in JoinedClassNames)
+		if (JoinedClassNames.Count == 0) return false;
+
+		var ownsVisitedClasses = visitedClasses == null;
+		if (ownsVisitedClasses && !EventLookupVisitedPool.TryTake(out visitedClasses))
+			visitedClasses = new(StringComparer.OrdinalIgnoreCase);
+
+		try
 		{
-			if (!visitedClasses.Add(className)) continue;
-			var classScript = GetJoinedClass(className);
-			if (classScript != null && classScript.HasEventFunction(functionName, visitedClasses)) return true;
+			foreach (var className in JoinedClassNames)
+			{
+				if (!visitedClasses!.Add(className)) continue;
+				var classScript = GetJoinedClass(className);
+				if (classScript != null && classScript.HasEventFunction(functionName, visitedClasses)) return true;
+			}
+
+			return false;
+		}
+		finally
+		{
+			if (ownsVisitedClasses)
+			{
+				visitedClasses!.Clear();
+				EventLookupVisitedPool.Add(visitedClasses);
+			}
+		}
+	}
+
+	private string? GetEventFunctionName(string eventName)
+	{
+		var functionName = $"on{eventName}";
+		if (HasEventFunction(functionName)) return functionName;
+
+		foreach (var alias in Gs1EventAliases)
+		{
+			if (!alias.Value.Equals(eventName, StringComparison.OrdinalIgnoreCase)) continue;
+
+			functionName = $"on{alias.Key}";
+			if (HasEventFunction(functionName)) return functionName;
 		}
 
-		return false;
+		return null;
 	}
 
 	private bool HasGs1EventFlag(int eventIndex)
@@ -821,8 +894,8 @@ public class Script : ScriptVariable
 		IReadOnlyCollection<IStackEntry>? entries
 	)
 	{
-		var functionName = $"on{eventName}";
-		var hasEventFunction = HasEventFunction(functionName);
+		var functionName = GetEventFunctionName(eventName);
+		var hasEventFunction = functionName != null;
 		var needsWholeScript = gs1EventIndex == null || HasGs1EventFlag(gs1EventIndex.Value);
 		if (!needsWholeScript && !hasEventFunction) return 0.ToStackEntry();
 
@@ -831,8 +904,8 @@ public class Script : ScriptVariable
 		if (executedWholeScript)
 			result = await Machine.ExecuteScript(eventName, BuildCallStack(entries)).ConfigureAwait(false);
 
-		if (hasEventFunction && (!executedWholeScript || !EventFunctionStartsAtScriptRoot(functionName)))
-			result = await Execute(functionName, BuildCallStack(entries)).ConfigureAwait(false);
+		if (hasEventFunction && (!executedWholeScript || !EventFunctionStartsAtScriptRoot(functionName!)))
+			result = await Execute(functionName!, BuildCallStack(entries)).ConfigureAwait(false);
 
 		return result;
 	}
@@ -844,7 +917,18 @@ public class Script : ScriptVariable
 	{
 		try
 		{
-			var entries = args?.Select(ToCallStackEntry).Where(entry => entry != null).Cast<IStackEntry>().ToArray();
+			IStackEntry[]? entries = null;
+			if (args is { Length: > 0 })
+			{
+				entries = new IStackEntry[args.Length];
+				var entryCount = 0;
+				foreach (var arg in args)
+					if (ToCallStackEntry(arg) is { } entry)
+						entries[entryCount++] = entry;
+
+				if (entryCount != entries.Length)
+					Array.Resize(ref entries, entryCount);
+			}
 			if (TryGetGs1Event(eventName, out var gs1EventName, out var gs1EventIndex))
 				return await CallScriptEvent(gs1EventName, gs1EventIndex, entries).ConfigureAwait(false);
 
@@ -888,6 +972,8 @@ public class Script : ScriptVariable
 		return 0.ToStackEntry();
 	}
 
+	public Task<IStackEntry> ExecuteScript() => Machine.ExecuteScript(string.Empty);
+
 	public async Task<IStackEntry> TriggerEvent(string eventName)
 	{
 		switch (eventName.ToLowerInvariant())
@@ -905,7 +991,8 @@ public class Script : ScriptVariable
 
 	public void SetTimer(double value)
 	{
-		Timer = DateTime.UtcNow.AddSeconds(value);
+		lock (_timerSync)
+			_timer = value > 0.0001d ? DateTime.UtcNow.AddSeconds(value) : null;
 		/*try
 		{
 			if (!ThreadPool.QueueUserWorkItem(
@@ -927,6 +1014,18 @@ public class Script : ScriptVariable
 		}*/
 	}
 
+	public bool TryConsumeDueTimer(DateTime now)
+	{
+		lock (_timerSync)
+		{
+			if (!ExecutionEnabled || _timer == null || now < _timer)
+				return false;
+
+			_timer = null;
+			return true;
+		}
+	}
+
 	private static void DelayedMethodCall(double seconds, Action methodToCall)
 	{
 		Thread.Sleep((int)(seconds * 1500));  // Convert seconds to milliseconds
@@ -935,7 +1034,6 @@ public class Script : ScriptVariable
 
 	public async Task OnTriggerEvent(string eventName)
 	{
-		Timer = null;
 		await Execute(eventName).ConfigureAwait(false);
 	}
 

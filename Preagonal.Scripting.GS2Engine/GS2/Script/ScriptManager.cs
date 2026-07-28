@@ -15,12 +15,16 @@ public class ScriptManager : IScriptManager
 	public static      Dictionary<string, IScriptProperties>        GlobalProperties { get; } = [];
 	public             ScriptVariable                               GlobalVariables  { get; } = new();
 	private readonly   Dictionary<string, ScriptObjectCreator>      _objectCreators  = new(StringComparer.OrdinalIgnoreCase);
+	private readonly   object                                       _globalScriptsSync = new();
+	private            Script[]                                     _globalScripts = [];
+	private            bool                                         _globalScriptsDirty = true;
 	private            Action<string>?                              _classScriptRequestHandler;
 
 	public ScriptManager(ILogger<ScriptManager> logger)
 	{
 		_logger = logger;
 		_ = TString.PropertiesInstance;
+		_ = VersionProperties.Instance;
 		RegisterDefaultObjectCreators();
 	}
 
@@ -34,11 +38,16 @@ public class ScriptManager : IScriptManager
 
 	public void RegisterGlobalScript(Script script)
 	{
-		GlobalVariables.AddOrUpdate(GetGlobalScriptKey(script), script.ToStackEntry());
+		lock (_globalScriptsSync)
+		{
+			GlobalVariables.AddOrUpdate(GetGlobalScriptKey(script), script.ToStackEntry());
 
-		var scriptName = GetGlobalScriptNameKey(script);
-		if (!string.IsNullOrEmpty(scriptName))
-			GlobalVariables.AddOrUpdate(scriptName, script.ToStackEntry());
+			var scriptName = GetGlobalScriptNameKey(script);
+			if (!string.IsNullOrEmpty(scriptName))
+				GlobalVariables.AddOrUpdate(scriptName, script.ToStackEntry());
+
+			_globalScriptsDirty = true;
+		}
 
 		foreach (var guiControl in GetGlobalGuiControls())
 			guiControl.InstallEventCatchers(script);
@@ -53,7 +62,7 @@ public class ScriptManager : IScriptManager
 	public void SetClassScriptRequestHandler(Action<string>? handler) =>
 		_classScriptRequestHandler = handler;
 
-	public void RequestClassScript(string className)
+	public virtual void RequestClassScript(string className)
 	{
 		if (string.IsNullOrWhiteSpace(className)) return;
 
@@ -74,15 +83,13 @@ public class ScriptManager : IScriptManager
 		if (_objectCreators.TryGetValue(typeName, out var creator))
 		{
 			createdObject = creator(objectName, script);
-			if (!string.IsNullOrWhiteSpace(objectName) && createdObject != null)
-				RegisterGlobalObject(objectName, createdObject);
+			RegisterCreatedObject(objectName, script, createdObject);
 			return true;
 		}
 
 		if (TryCreateProfile(typeName, objectName, out createdObject))
 		{
-			if (!string.IsNullOrWhiteSpace(objectName) && createdObject != null)
-				RegisterGlobalObject(objectName, createdObject);
+			RegisterCreatedObject(objectName, script, createdObject);
 			return true;
 		}
 
@@ -105,31 +112,53 @@ public class ScriptManager : IScriptManager
 
 	public void UnregisterGlobalScript(Script script)
 	{
-		GlobalVariables.RemoveVariable(GetGlobalScriptKey(script));
+		foreach (var globalScript in GetGlobalScripts())
+			globalScript.RemoveEventCatchersFrom(script);
+		foreach (var guiControl in GetGlobalGuiControls())
+			guiControl.RemoveEventCatchersFrom(script);
 
-		var scriptName = GetGlobalScriptNameKey(script);
-		if (string.IsNullOrEmpty(scriptName))
-			return;
-
-		if (GlobalVariables.TryGetVariable(scriptName, out var entry) &&
-			entry != null &&
-			ReferenceEquals(entry.GetValue<Script>(), script))
+		foreach (var (name, entry) in GlobalVariables.GetSnapshot())
 		{
-			GlobalVariables.RemoveVariable(scriptName);
+			var value = entry.GetValue();
+			if (ReferenceEquals(value, script) ||
+			    value is ScriptVariable { OwnerScript: { } owner } && ReferenceEquals(owner, script))
+			{
+				GlobalVariables.RemoveVariable(name);
+			}
+		}
+
+		lock (_globalScriptsSync)
+			_globalScriptsDirty = true;
+	}
+
+	public IReadOnlyCollection<Script> GetGlobalScripts()
+	{
+		lock (_globalScriptsSync)
+		{
+			if (!_globalScriptsDirty) return _globalScripts;
+
+			_globalScripts = GlobalVariables
+				.GetSnapshot()
+				.Where(pair => pair.Key.StartsWith(GlobalScriptPrefix, StringComparison.Ordinal))
+				.Select(pair => pair.Value.GetValue())
+				.OfType<Script>()
+				.ToArray();
+			_globalScriptsDirty = false;
+			return _globalScripts;
 		}
 	}
 
-	public IReadOnlyCollection<Script> GetGlobalScripts() =>
-		GlobalVariables
-			.GetSnapshot()
-			.Where(pair => pair.Key.StartsWith(GlobalScriptPrefix, System.StringComparison.Ordinal))
-			.Select(pair => pair.Value.GetValue<Script>())
-			.Where(script => script != null)
-			.Cast<Script>()
-			.ToList();
-
 	private static string GetGlobalScriptKey(Script script) => $"{GlobalScriptPrefix}{script.GetHashCode()}";
 	private static string GetGlobalScriptNameKey(Script script) => script.Name?.ToString().ToLowerInvariant() ?? string.Empty;
+
+	private void RegisterCreatedObject(string objectName, Script script, ScriptVariable? createdObject)
+	{
+		if (createdObject == null) return;
+
+		createdObject.OwnerScript ??= script;
+		if (!string.IsNullOrWhiteSpace(objectName))
+			RegisterGlobalObject(objectName, createdObject);
+	}
 
 	private void InstallEventCatchers(GuiControl guiControl)
 	{
@@ -140,9 +169,8 @@ public class ScriptManager : IScriptManager
 	private IReadOnlyCollection<GuiControl> GetGlobalGuiControls() =>
 		GlobalVariables
 			.GetSnapshot()
-			.Select(pair => pair.Value.GetValue<GuiControl>())
-			.Where(guiControl => guiControl != null)
-			.Cast<GuiControl>()
+			.Select(pair => pair.Value.GetValue())
+			.OfType<GuiControl>()
 			.ToList();
 
 	private bool TryCreateProfile(string typeName, string objectName, out ScriptVariable? createdObject)

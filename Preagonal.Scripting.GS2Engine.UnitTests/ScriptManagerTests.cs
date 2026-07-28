@@ -1,13 +1,43 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging.Testing;
 using Preagonal.Scripting.GS2Engine.Enums;
+using Preagonal.Scripting.GS2Engine.Extensions;
 using Preagonal.Scripting.GS2Engine.GS2.Script;
 using Preagonal.Scripting.GS2Engine.Models;
+using Preagonal.Scripting.GS2Engine.Models.Properties;
 
 namespace Preagonal.Scripting.GS2Engine.UnitTests;
 
 public class ScriptManagerTests
 {
+	[Fact]
+	public void Script_when_created_defaults_source_server_to_offline()
+	{
+		var manager = new ScriptManager(new FakeLogger<ScriptManager>());
+
+		var script = new Script(manager, ScriptType.Weapon);
+
+		Assert.Equal("Offline", script.SourceServer);
+	}
+
+	[Fact]
+	public void Script_when_loaded_from_disk_marks_source_server_as_offline()
+	{
+		var path = Path.GetTempFileName();
+		try
+		{
+			var manager = new ScriptManager(new FakeLogger<ScriptManager>());
+
+			var script = new Script(manager, path);
+
+			Assert.Equal("Offline", script.SourceServer);
+		}
+		finally
+		{
+			File.Delete(path);
+		}
+	}
+
 	[Fact]
 	public async Task GetGlobalScripts_WhenGlobalVariablesChangeConcurrently_DoesNotThrow()
 	{
@@ -37,6 +67,18 @@ public class ScriptManagerTests
 		await writer;
 
 		Assert.Null(exception);
+	}
+
+	[Fact]
+	public void GetGlobalScripts_WhenOnlyGlobalVariablesChange_ReusesSnapshot()
+	{
+		var manager = new ScriptManager(new FakeLogger<ScriptManager>());
+		manager.RegisterGlobalScript(new(manager, ScriptType.Weapon));
+		var scripts = manager.GetGlobalScripts();
+
+		manager.RegisterGlobalVariable("unrelated", 1);
+
+		Assert.Same(scripts, manager.GetGlobalScripts());
 	}
 
 	[Fact]
@@ -100,6 +142,79 @@ public class ScriptManagerTests
 		Assert.Empty(exceptions);
 	}
 
+	[Fact]
+	public async Task UnregisterGlobalScript_when_script_created_profile_removes_profile()
+	{
+		var manager = new ScriptManager(new FakeLogger<ScriptManager>());
+		var script = new Script(
+			manager,
+			"object-owner",
+			Compile("function onCreated() { new GuiControlProfile(\"owned-profile\"); }")
+		);
+		await script.Call("onCreated");
+
+		manager.UnregisterGlobalScript(script);
+
+		Assert.False(manager.GlobalVariables.ContainsVariable("owned-profile"));
+	}
+
+	[Fact]
+	public async Task Contextual_script_property_function_receives_executing_script()
+	{
+		Script? executingScript = null;
+		ScriptProperties<ContextualFunctionTarget>.AddFunctions(
+			null,
+			new()
+			{
+				{
+					"captureexecutingscript",
+					"",
+					(_, machine, _) =>
+					{
+						executingScript = machine.CurrentScript;
+						return 0;
+					}
+				},
+			}
+		);
+		var manager = new ScriptManager(new FakeLogger<ScriptManager>());
+		var script = new Script(
+			manager,
+			"context-owner",
+			Compile("function onCreated() { captureexecutingscript(); }")
+		);
+
+		await script.Call("onCreated");
+
+		Assert.Same(script, executingScript);
+	}
+
+	[Fact]
+	public void UnregisterGlobalScript_removes_object_event_catchers_from_other_scripts()
+	{
+		var callCount = 0;
+		var manager = new ScriptManager(new FakeLogger<ScriptManager>());
+		manager.RegisterGlobalVariable("markevent", (Script.Command)((_, _) =>
+		{
+			callCount++;
+			return 0.ToStackEntry();
+		}));
+		var owner = new Script(manager, ScriptType.Weapon);
+		var control = new TriggerableGuiControl("control", owner);
+		var source = new Script(
+			manager,
+			"event-source",
+			Compile("function control.onAction() { markevent(); }")
+		);
+		manager.RegisterGlobalScript(source);
+		control.TriggerAction();
+
+		manager.UnregisterGlobalScript(source);
+		control.TriggerAction();
+
+		Assert.Equal(1, callCount);
+	}
+
 	private static byte[] Compile(string scriptText)
 	{
 		var response = GS2Compiler.Interface.CompileCode(scriptText, "weapon", "test", withHeader: false);
@@ -107,5 +222,12 @@ public class ScriptManagerTests
 			return response.ByteCode;
 
 		throw new($"Script failure: {response.ErrMsg}");
+	}
+
+	private sealed class ContextualFunctionTarget;
+
+	private sealed class TriggerableGuiControl(string id, Script script) : GuiControl(id, script)
+	{
+		public void TriggerAction() => InvokeEvent("onAction");
 	}
 }

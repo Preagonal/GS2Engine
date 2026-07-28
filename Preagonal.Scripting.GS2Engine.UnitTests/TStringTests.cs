@@ -56,6 +56,27 @@ public class TStringTests
 	}
 
 	[Fact]
+	public void Given_string_value_When_writing_byte_Then_appends_to_original_value()
+	{
+		TString value = "abc";
+
+		value.writeByte((byte)'d');
+
+		Assert.Equal("abcd", value.ToString());
+	}
+
+	[Fact]
+	public void Given_unchanged_value_When_converting_to_string_Then_reuses_decoded_value()
+	{
+		TString value = new byte[] { (byte)'a', (byte)'b', (byte)'c' };
+		var first = value.ToString();
+
+		var second = value.ToString();
+
+		Assert.Same(first, second);
+	}
+
+	[Fact]
 	public void When_removing_from_start_of_tstring_Then_value_is_correct()
 	{
 		//Arrange

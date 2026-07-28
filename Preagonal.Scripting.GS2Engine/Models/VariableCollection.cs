@@ -87,7 +87,7 @@ public class VariableCollection
 	public IReadOnlyCollection<KeyValuePair<string, IStackEntry>> GetSnapshot()
 	{
 		lock (_syncRoot)
-			return _collection.ToArray();
+			return _collection.Count == 0 ? [] : _collection.ToArray();
 	}
 
 	public void AddOrUpdate(VariableCollection? collection)

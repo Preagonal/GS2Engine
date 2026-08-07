@@ -119,7 +119,7 @@ public class ScriptMachine
 			_tempFrames.Push(CreateTempFrame());
 			_tempAliasFrames.Push(CreateTempAliasFrame());
 		}
-		_localFrames.Push(new ScriptVariable());
+		_localFrames.Push(new());
 		_functionFrames.Push(functionName.ToLowerInvariant());
 		try
 		{
@@ -1279,7 +1279,7 @@ public class ScriptMachine
 						var withTarget = GetEntry(stack.Pop(), returnStackEntryIfNotFound: true);
 						var withValue = UnwrapScriptValue(withTarget.GetValue());
 						if (withValue is null ||
-						    withTarget.Type == StackEntryType.Number && ToScriptDouble(withValue) == 0.0d ||
+						    withTarget.Type == Number && ToScriptDouble(withValue) == 0.0d ||
 						    !IsObjectEntry(withTarget))
 						{
 							index = (int)op.Value;
@@ -2448,16 +2448,16 @@ public class ScriptMachine
 			if (leftEntry.Type == StackEntryType.String && rightEntry.Type == StackEntryType.String)
 				return Math.Sign(string.Compare(Tools.ToScriptString(left), Tools.ToScriptString(right), StringComparison.OrdinalIgnoreCase));
 
-			if (leftEntry.Type == StackEntryType.String && rightEntry.Type == StackEntryType.Number ||
-			    leftEntry.Type == StackEntryType.Number && rightEntry.Type == StackEntryType.String ||
-			    leftEntry.Type == StackEntryType.Number && rightEntry.Type == StackEntryType.Number)
+			if (leftEntry.Type == StackEntryType.String && rightEntry.Type == Number ||
+			    leftEntry.Type == Number && rightEntry.Type == StackEntryType.String ||
+			    leftEntry.Type == Number && rightEntry.Type == Number)
 				return CompareScriptNumbers(ToScriptDouble(left), ToScriptDouble(right));
 
 			return 0;
 		}
 
 		private static bool IsComparableScriptScalar(IStackEntry entry) =>
-			entry.Type is StackEntryType.String or StackEntryType.Number;
+			entry.Type is StackEntryType.String or Number;
 
 		private static int CompareScriptNumbers(double left, double right)
 		{
@@ -2667,7 +2667,7 @@ public class ScriptMachine
 				entry.SetValue(copy);
 				return copy;
 			}
-			if (value == null || entry.Type == StackEntryType.Number && ToScriptDouble(value) == 0.0d)
+			if (value == null || entry.Type == Number && ToScriptDouble(value) == 0.0d)
 			{
 				var listCopy = new List<object?>();
 				entry.SetValue(listCopy);

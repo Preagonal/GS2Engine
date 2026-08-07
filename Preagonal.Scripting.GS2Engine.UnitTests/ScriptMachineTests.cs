@@ -5,7 +5,6 @@ using Preagonal.Scripting.GS2Engine.Extensions;
 using Preagonal.Scripting.GS2Engine.GS2.ByteCode;
 using Preagonal.Scripting.GS2Engine.GS2.Script;
 using Preagonal.Scripting.GS2Engine.Models;
-using Preagonal.Scripting.GS2Engine.Models.Properties;
 using Preagonal.Scripting.GS2Engine.UnitTests.Objects;
 using Xunit.Abstractions;
 
@@ -2087,7 +2086,7 @@ public class ScriptMachineTests
 		//Arrange
 		_receivedStrings.Clear();
 		_calledTimes = 0;
-		_scriptManager.RegisterObjectCreator("MemberFunctionParent", (id, _) => new ScriptVariable(id));
+		_scriptManager.RegisterObjectCreator("MemberFunctionParent", (id, _) => new(id));
 		_scriptManager.RegisterObjectCreator("MemberFunctionChild", (id, _) => new MemberFunctionChildObject(id));
 		const string scriptText =
 			"""
@@ -3227,7 +3226,7 @@ public class ScriptMachineTests
 	public void Given_registered_global_gui_control_When_set_size_changes_extent_Then_global_onresize_is_called()
 	{
 		//Arrange
-		var control = new GuiControl("graalcontrol", new Script(_scriptManager, ScriptType.Weapon));
+		var control = new GuiControl("graalcontrol", new(_scriptManager, ScriptType.Weapon));
 		_scriptManager.RegisterGlobalObject("graalcontrol", control);
 		CompileScript(
 			"""
@@ -3249,7 +3248,7 @@ public class ScriptMachineTests
 	public void Given_registered_global_gui_control_When_notify_resize_is_called_Then_global_onresize_is_called()
 	{
 		//Arrange
-		var control = new GuiControl("graalcontrol", new Script(_scriptManager, ScriptType.Weapon));
+		var control = new GuiControl("graalcontrol", new(_scriptManager, ScriptType.Weapon));
 		_scriptManager.RegisterGlobalObject("graalcontrol", control);
 		control.SetSize(300, 200);
 		CompileScript(
@@ -6799,7 +6798,7 @@ public class ScriptMachineTests
 		{
 			AddProperties(
 				this,
-				new PropertyDefinitions<ParentPropertyMergeTestObject>
+				new()
 				{
 					{ "value", "", value => value.ParentValue, (value, propertyValue) => value.ParentValue = propertyValue }
 				}
@@ -6813,7 +6812,7 @@ public class ScriptMachineTests
 		{
 			AddProperties(
 				this,
-				new PropertyDefinitions<ChildPropertyMergeTestObject>
+				new()
 				{
 					{ "value", "", value => value.ChildValue, (value, propertyValue) => value.ChildValue = propertyValue }
 				}
@@ -6832,7 +6831,7 @@ public class ScriptMachineTests
 		{
 			AddProperties(
 				this,
-				new PropertyDefinitions<ObjectPropertyWriteTestObject>
+				new()
 				{
 					{ "objectvalue", "", value => value.ObjectValue, (value, propertyValue) => value.ObjectValue = propertyValue }
 				}
@@ -6851,7 +6850,7 @@ public class ScriptMachineTests
 		{
 			AddProperties(
 				this,
-				new PropertyDefinitions<TStringPropertyWriteTestObject>
+				new()
 				{
 					{ "scriptstring", "", value => value.ScriptString, (value, propertyValue) => value.ScriptString = propertyValue }
 				}
@@ -6873,14 +6872,14 @@ public class ScriptMachineTests
 		{
 			AddProperties(
 				this,
-				new PropertyDefinitions<MemberFunctionChildObject>
+				new()
 				{
 					{ "called", "", value => value.Called }
 				}
 			);
 			AddFunctions(
 				this,
-				new FunctionDefinitions<MemberFunctionChildObject>
+				new()
 				{
 					{
 						"mark",
@@ -6916,7 +6915,7 @@ public class ScriptMachineTests
 		{
 			AddProperties(
 				this,
-				new PropertyDefinitions<ReceiverPropertyScript>
+				new()
 				{
 					{ "position", "", script => script.Position, (script, value) => script.Position = value },
 				}

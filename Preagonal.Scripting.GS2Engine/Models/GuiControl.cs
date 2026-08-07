@@ -528,7 +528,7 @@ public class GuiControl : ScriptVariable, IGuiControl, IDisposable
 	{
 		if (_ownProfile != null) return;
 
-		_ownProfile = new GuiControlProfile($"{Id}_profile");
+		_ownProfile = new($"{Id}_profile");
 		if (ResolveProfile(_profile) is { } assignedProfile)
 			_ownProfile.CopyFrom(assignedProfile);
 	}

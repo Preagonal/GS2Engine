@@ -4,7 +4,6 @@ using Preagonal.Scripting.GS2Engine.Enums;
 using Preagonal.Scripting.GS2Engine.Extensions;
 using Preagonal.Scripting.GS2Engine.GS2.Script;
 using Preagonal.Scripting.GS2Engine.Models;
-using Preagonal.Scripting.GS2Engine.Models.Properties;
 
 namespace Preagonal.Scripting.GS2Engine.UnitTests;
 

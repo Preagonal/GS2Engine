@@ -972,6 +972,26 @@ public class Script : ScriptVariable
 		return 0.ToStackEntry();
 	}
 
+    public async Task<IStackEntry> CallWithContext(
+        string eventName,
+        ScriptExecutionContext executionContext,
+        params object[]? args
+    )
+    {
+        ArgumentNullException.ThrowIfNull(executionContext);
+
+        var previousContext = Machine.ScriptExecutionContext;
+        Machine.ScriptExecutionContext = executionContext;
+        try
+        {
+            return await Call(eventName, args).ConfigureAwait(false);
+        }
+        finally
+        {
+            Machine.ScriptExecutionContext = previousContext;
+        }
+    }
+
 	public Task<IStackEntry> ExecuteScript() => Machine.ExecuteScript(string.Empty);
 
 	public async Task<IStackEntry> TriggerEvent(string eventName)

@@ -1006,6 +1006,64 @@ public class ScriptMachineTests
 		Assert.Equal("testlevel.nw", result.GetValue()!.ToString());
 	}
 
+    [Fact]
+    public async Task CallWithContext_Given_player_When_called_Then_reads_player_opcode()
+    {
+        //Arrange
+        var player = new ScriptVariable();
+        player.AddOrUpdate("account", "context-player".ToStackEntry());
+        var script = CompileScript("function readPlayer() { return player.account; }");
+
+        //Act
+        var result = await script.CallWithContext("readPlayer", new() { Player = player });
+
+        //Assert
+        Assert.Equal("context-player", result.GetValue()?.ToString());
+    }
+
+    [Fact]
+    public async Task CallWithContext_Given_player_object_When_called_Then_reads_playero_opcode()
+    {
+        //Arrange
+        var playerObject = new ScriptVariable();
+        playerObject.AddOrUpdate("account", "context-playero".ToStackEntry());
+        var script = CompileScript("function readPlayerObject() { return playero.account; }");
+
+        //Act
+        var result = await script.CallWithContext("readPlayerObject", new() { PlayerObject = playerObject });
+
+        //Assert
+        Assert.Equal("context-playero", result.GetValue()?.ToString());
+    }
+
+    [Fact]
+    public async Task CallWithContext_Given_level_When_called_Then_reads_level_opcode()
+    {
+        //Arrange
+        var level = new ScriptVariable();
+        level.AddOrUpdate("name", "context-level.nw".ToStackEntry());
+        var script = CompileScript("function readLevel() { return level.name; }");
+
+        //Act
+        var result = await script.CallWithContext("readLevel", new() { Level = level });
+
+        //Assert
+        Assert.Equal("context-level.nw", result.GetValue()?.ToString());
+    }
+
+    [Fact]
+    public async Task CallWithContext_Given_null_context_When_called_Then_throws_argument_null_exception()
+    {
+        //Arrange
+        var script = CompileScript("function probe() { return 1; }");
+
+        //Act
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(() => script.CallWithContext("probe", null!));
+
+        //Assert
+        Assert.Equal("Value cannot be null. (Parameter 'executionContext')", exception.Message);
+    }
+
 	[Fact]
 	public async Task Given_this_var3_When_returning_without_this_prefix_Then_0_should_be_returned()
 	{

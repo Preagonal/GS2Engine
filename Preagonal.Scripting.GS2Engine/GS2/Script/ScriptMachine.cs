@@ -20,6 +20,13 @@ public class ScriptMachine
 	private readonly ScriptVariable  _rootTempVariables = new();
 	private readonly HashSet<string> _rootTempAliases = new(StringComparer.OrdinalIgnoreCase);
 	private readonly AsyncLocal<ExecutionState?> _executionState = new();
+    private readonly AsyncLocal<ScriptExecutionContext?> _scriptExecutionContext = new();
+
+    internal ScriptExecutionContext? ScriptExecutionContext
+    {
+        get => _scriptExecutionContext.Value;
+        set => _scriptExecutionContext.Value = value;
+    }
 
 	private ExecutionState State => _executionState.Value ?? throw new InvalidOperationException("No active script execution.");
 	private Stack<ScriptVariable> _tempFrames => State.TempFrames;
@@ -1332,13 +1339,16 @@ public class ScriptMachine
 						stack.Push((RefObject ?? _script).ToStackEntry());
 						break;
 				case Opcode.OP_PLAYER:
-					stack.Push(GetNamedGlobalValue("player"));
+                    stack.Push(ScriptExecutionContext?.Player?.ToStackEntry() ?? GetNamedGlobalValue("player"));
 					break;
 				case Opcode.OP_PLAYERO:
-					stack.Push(GetNamedGlobalValue("playero", "player"));
+                    stack.Push(
+                        (ScriptExecutionContext?.PlayerObject ?? ScriptExecutionContext?.Player)?.ToStackEntry() ??
+                        GetNamedGlobalValue("playero", "player")
+                    );
 					break;
 				case Opcode.OP_LEVEL:
-					stack.Push(GetNamedGlobalValue("level"));
+                    stack.Push(ScriptExecutionContext?.Level?.ToStackEntry() ?? GetNamedGlobalValue("level"));
 					break;
 				case Opcode.OP_TEMP:
 					stack.Push(new StackEntry(StackEntryType.Array, _tempVariables));

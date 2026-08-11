@@ -177,6 +177,10 @@ def buildStepDocker() {
 							''');
 							discordSend description: "NuGet Successful", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Artifact Successful: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK;
 						}
+						withCredentials([string(credentialsId: 'PREAGONAL_PRIVATE_NUGET_TOKEN', variable: 'NUGET_TOKEN')]) {
+							sh("dotnet nuget push --skip-duplicate -s https://packages.preagonal.net/nuget/ -k ${env.NUGET_TOKEN} Preagonal.Scripting.GS2Engine/bin/Release/*.nupkg;chmod 777 -R .");
+							discordSend description: "NuGet Successful", footer: "", link: env.BUILD_URL, result: currentBuild.currentResult, title: "[${split_job_name[0]}] Artifact Successful: ${fixed_job_name} #${env.BUILD_NUMBER}", webhookURL: env.GS2EMU_WEBHOOK;
+						}
 						withCredentials([string(credentialsId: 'PREAGONAL_NUGET_TOKEN', variable: 'NUGET_TOKEN')]) {
 							sh('''
 								trap 'chmod 777 -R .' EXIT

@@ -24,6 +24,7 @@ public class ScriptManager : IScriptManager
 	{
 		_logger = logger;
 		_ = TString.PropertiesInstance;
+		_ = ScriptArrayProperties.Instance;
 		_ = VersionProperties.Instance;
 		RegisterDefaultObjectCreators();
 	}

@@ -2693,7 +2693,7 @@ public class ScriptMachine
 				return 3.0d;
 			if (value is VariableCollection or Script or IGuiControl)
 				return 2.0d;
-			if (value is TString or string || value != null && IsScriptNumeric(value))
+			if (value is TString or string)
 				return 1.0d;
 			return 0.0d;
 		}

@@ -8,6 +8,6 @@ public interface IPropertyDefinition<in T>
 	string       Description  { get; }
 	Type         ReturnType   { get; }
 	PropertyType PropertyType { get; }
-	object?      Read(T instance);
-	void         Write(T instance, object? value);
+	Func<T, object?>?   Read  { get; }
+	Action<T, object?>? Write { get; }
 }

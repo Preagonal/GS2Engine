@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
@@ -12,7 +13,7 @@ public class ScriptManager : IScriptManager
 	private const string GlobalScriptPrefix = "__script:";
 
 	protected readonly ILogger<ScriptManager>                       _logger;
-	public static      Dictionary<string, IScriptProperties>        GlobalProperties { get; } = [];
+	public static      ConcurrentDictionary<string, IScriptProperties> GlobalProperties { get; } = [];
 	public             ScriptVariable                               GlobalVariables  { get; } = new();
 	private readonly   Dictionary<string, ScriptObjectCreator>      _objectCreators  = new(StringComparer.OrdinalIgnoreCase);
 	private readonly   object                                       _globalScriptsSync = new();

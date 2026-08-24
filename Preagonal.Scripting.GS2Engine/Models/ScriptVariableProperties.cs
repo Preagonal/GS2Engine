@@ -10,7 +10,7 @@ public class ScriptVariableProperties : ScriptProperties<ScriptVariable>
 			this,
 			new()
 			{
-				{ "joinedclasses", "", variable => variable.JoinedClasses, (variable, value) => variable.JoinedClasses = value },
+				{ "joinedclasses", "The names of the classes joined to this object.", variable => variable.JoinedClasses, (variable, value) => variable.JoinedClasses = value },
 			}
 		);
 
@@ -20,7 +20,7 @@ public class ScriptVariableProperties : ScriptProperties<ScriptVariable>
 			{
 				{
 					"join",
-					"",
+					"Joins a class script to this object.",
 					(variable, args) =>
 					{
 						if (args.Length > 0)
@@ -32,7 +32,8 @@ public class ScriptVariableProperties : ScriptProperties<ScriptVariable>
 						}
 
 						return 0;
-					}
+					},
+					[new("className", typeof(string))]
 				},
 			}
 		);

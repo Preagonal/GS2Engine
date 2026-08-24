@@ -12,13 +12,22 @@ public readonly struct PropertyDefinition<TInstance, TRet>(string propertyName, 
 	public  PropertyType                            PropertyType { get; init; } = propertyType;
 	public  Type                                    ReturnType   => typeof(TRet);
 
-	object? IPropertyDefinition<TInstance>.Read(TInstance instance)
-		=> ReadTyped is null ? null : ReadTyped(instance);
-
-	void IPropertyDefinition<TInstance>.Write(TInstance instance, object? value)
+	Func<TInstance, object?>? IPropertyDefinition<TInstance>.Read
 	{
-		if (WriteTyped is null) return;
-		WriteTyped(instance, ConvertValue(value));
+		get
+		{
+			var readTyped = ReadTyped;
+			return readTyped is null ? null : instance => readTyped(instance);
+		}
+	}
+
+	Action<TInstance, object?>? IPropertyDefinition<TInstance>.Write
+	{
+		get
+		{
+			var writeTyped = WriteTyped;
+			return writeTyped is null ? null : (instance, value) => writeTyped(instance, ConvertValue(value));
+		}
 	}
 
 	private static TRet ConvertValue(object? value)

@@ -17,11 +17,11 @@ public class ScriptProperties<T> : HashSet<IScriptProperty>, IScriptProperties w
 		if (Type.IsGenericType)
 			name += $"<{Type.GetGenericArguments()[0].Name}>";
 
-		ScriptManager.GlobalProperties.Add(name, this);
+		ScriptManager.GlobalProperties.TryAdd(name, this);
 	}
 
 	private Type               Type             { get; }
-	private Type?              ParentType       { get; }
+	public  Type?              ParentType       { get; }
 	public  bool               Compiled         { get; private set; }
 	public  IScriptProperties? ParentProperties { get; private set; }
 

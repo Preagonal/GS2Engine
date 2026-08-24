@@ -12,10 +12,10 @@ public sealed class VersionProperties : ScriptProperties<Version>
 			this,
 			new()
 			{
-				{ "major", "", version => version.Major },
-				{ "minor", "", version => version.Minor },
-				{ "build", "", version => version.Build },
-				{ "revision", "", version => version.Revision },
+				{ "major", "The major version number.", version => version.Major },
+				{ "minor", "The minor version number.", version => version.Minor },
+				{ "build", "The build version number.", version => version.Build },
+				{ "revision", "The revision version number.", version => version.Revision },
 			}
 		);
 

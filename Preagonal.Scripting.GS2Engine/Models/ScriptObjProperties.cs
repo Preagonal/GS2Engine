@@ -13,7 +13,7 @@ public class ScriptObjProperties : ScriptProperties<Script>
 			this,
 			new()
 			{
-				{ "hp", "", _ => 0.00d },
+				{ "hp", "The object's hit-point value.", _ => 0.00d },
 			}
 		);
 
@@ -23,7 +23,7 @@ public class ScriptObjProperties : ScriptProperties<Script>
 			{
 				{
 					"settimer",
-					"",
+					"Schedules the object's onTimeout event after the specified delay.",
 					(control, o2) =>
 					{
 						var value = o2.FirstOrDefault()?.GetValue();
@@ -35,7 +35,8 @@ public class ScriptObjProperties : ScriptProperties<Script>
 						}
 
 						return 0;
-					}
+					},
+					[new("delay", typeof(double))]
 				},
 			}
 		);

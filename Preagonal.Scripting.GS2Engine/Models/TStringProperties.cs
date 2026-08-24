@@ -8,12 +8,12 @@ public class TStringProperties : ScriptProperties<TString>
 			this,
 			new()
 			{
-				{ "lower", "", (value, _) => value.ToString().ToLowerInvariant() },
-				{ "lowercase", "", (value, _) => value.ToString().ToLowerInvariant() },
-				{ "upper", "", (value, _) => value.ToString().ToUpperInvariant() },
-				{ "uppercase", "", (value, _) => value.ToString().ToUpperInvariant() },
-				{ "replace", "", ReplaceAll },
-				{ "replaceall", "", ReplaceAll }
+				{ "lower", "Returns the string converted to lower case.", (value, _) => value.ToString().ToLowerInvariant(), [] },
+				{ "lowercase", "Returns the string converted to lower case.", (value, _) => value.ToString().ToLowerInvariant(), [] },
+				{ "upper", "Returns the string converted to upper case.", (value, _) => value.ToString().ToUpperInvariant(), [] },
+				{ "uppercase", "Returns the string converted to upper case.", (value, _) => value.ToString().ToUpperInvariant(), [] },
+				{ "replace", "Returns the string with every matching substring replaced.", ReplaceAll, [new("search", typeof(string)), new("replacement", typeof(string))] },
+				{ "replaceall", "Returns the string with every matching substring replaced.", ReplaceAll, [new("search", typeof(string)), new("replacement", typeof(string))] }
 			}
 		);
 
